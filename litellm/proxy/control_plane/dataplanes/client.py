@@ -15,7 +15,6 @@ import httpx
 from pydantic import TypeAdapter
 
 from litellm._logging import verbose_proxy_logger
-from litellm.llms.custom_httpx.http_handler import header_value
 from litellm.proxy.control_plane.audit.log import redact_path
 from litellm.proxy.control_plane.common.tracing import DataplaneTarget, SpanRecorder, Untraced
 from litellm.proxy.control_plane.dataplanes.credentials import Caller, CredentialKind, CredentialUnavailable
@@ -250,7 +249,7 @@ class DataplaneClient:
                 verbose_proxy_logger.debug("Control-plane dataplane transport failed: %s", error)
                 await _close_quietly(stack)
                 return DataplaneUnreachable(_describe(error), attempts=1)
-            content_type: Final = header_value(response.headers, "content-type")
+            content_type: Final = response.headers.get("content-type")
             is_json: Final = content_type is not None and "json" in content_type.lower()
             body, parsed_as_json = _parse_body(content, response) if content is not None else ("", False)
             parsed_json_response: Final = is_json and parsed_as_json
@@ -262,8 +261,8 @@ class DataplaneClient:
                     body,
                     None if parsed_json_response else content,
                     None if parsed_json_response else content_type,
-                    header_value(response.headers, "content-disposition"),
-                    header_value(response.headers, "cache-control"),
+                    response.headers.get("content-disposition"),
+                    response.headers.get("cache-control"),
                 )
             )
             deferred_exit: Final = stack.pop_all()

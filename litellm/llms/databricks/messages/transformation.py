@@ -1,5 +1,5 @@
 import json
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping
 from typing import Final
 
 import httpx
@@ -122,7 +122,7 @@ class DatabricksAnthropicMessagesConfig(DatabricksBase, AnthropicMessagesConfig)
         self,
         headers: dict[str, str],  # mutable-ok: mirrors the base signature
         model: str,
-        messages: Sequence[object],
+        messages: list[object],  # mutable-ok: mirrors the base signature
         optional_params: dict[str, object],  # mutable-ok: mirrors the base signature
         litellm_params: dict[str, object],  # mutable-ok: mirrors the base signature
         api_key: str | None = None,

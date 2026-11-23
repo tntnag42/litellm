@@ -2,17 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 from datetime import datetime
-from typing import Final, Protocol
+from typing import Final
 
 import polars as pl
-
-from litellm.litellm_core_utils.core_helpers import require_attributes
-
-
-class _FrameRows(Protocol):
-    def to_dicts(self) -> Sequence[Mapping[str, object]]: ...
 
 
 class FocusLiteLLMDatabase:
@@ -102,15 +95,13 @@ class FocusLiteLLMDatabase:
         """
 
         try:
-            from litellm.proxy.utils import query_raw_rows
-
-            db_response: Final = await query_raw_rows(client.db, query, *query_params)
+            db_response: Final = await client.db.query_raw(query, *query_params)
             from litellm.proxy.spend_tracking.key_metadata_recovery import (
                 fill_missing_api_key_aliases,
             )
 
             usage_rows: Final = (
-                require_attributes(db_response, _FrameRows, "to_dicts").to_dicts()
+                db_response.to_dicts()
                 if isinstance(db_response, pl.DataFrame)
                 else db_response
                 if isinstance(db_response, list)

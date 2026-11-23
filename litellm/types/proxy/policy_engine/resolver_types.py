@@ -6,7 +6,7 @@ the final guardrails list.
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import ConfigDict, Field
 
@@ -364,7 +364,7 @@ class PolicyAttachmentListResponse(LiteLLMBaseModel):
 class PipelineTestRequest(LiteLLMBaseModel):
     """Request body for testing a guardrail pipeline with sample messages."""
 
-    pipeline: dict[str, object] = Field(
+    pipeline: dict[str, Any] = Field(
         description="Pipeline definition with 'mode' and 'steps'.",
     )
     test_messages: list[dict[str, str]] = Field(

@@ -14,19 +14,18 @@ import sys
 import threading
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 if TYPE_CHECKING:
     from litellm.types.caching import RedisPipelineIncrementOperation
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel
 
 from litellm.constants import MAX_SIZE_PER_ITEM_IN_MEMORY_CACHE_IN_KB
 
 from .base_cache import BaseCache
 
 DEFAULT_MAX_SIZE_IN_MEMORY: Final = 200
-_UNTYPED_VALUE: Final = TypeAdapter(object)
 
 
 class InMemoryCache(BaseCache):
@@ -55,7 +54,7 @@ class InMemoryCache(BaseCache):
         self._write_lock = threading.Lock()
         self._clock = clock if clock is not None else lambda: time.time()
 
-    def check_value_size(self, value: object):
+    def check_value_size(self, value: Any):
         """
         Check if value size exceeds max_size_per_item (1MB)
         Returns True if value size is acceptable, False otherwise
@@ -104,7 +103,7 @@ class InMemoryCache(BaseCache):
     def _cache_keys(self) -> tuple[str, ...]:
         return tuple(self.cache_dict)  # pyright: ignore[reportUnknownVariableType]  # cache_dict is untyped legacy state
 
-    def _remove_key(self, key: object) -> None:
+    def _remove_key(self, key: str) -> None:
         """
         Remove a key from both cache_dict and ttl_dict
         """
@@ -183,7 +182,7 @@ class InMemoryCache(BaseCache):
             # This keeps expiration_heap bounded even when the live cache stays
             # below max_size_in_memory and keys are reinserted after TTL expiry.
             self.evict_cache()
-            if not self.check_value_size(_UNTYPED_VALUE.validate_python(value)):
+            if not self.check_value_size(value):
                 return
 
             self.cache_dict[key] = value
@@ -290,7 +289,7 @@ class InMemoryCache(BaseCache):
     async def disconnect(self):
         pass
 
-    def delete_cache(self, key: object) -> None:
+    def delete_cache(self, key: str) -> None:
         self._remove_key(key)
 
     async def async_get_ttl(self, key: str) -> int | None:

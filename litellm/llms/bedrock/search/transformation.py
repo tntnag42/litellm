@@ -39,7 +39,6 @@ from typing import Final
 import httpx
 from pydantic import TypeAdapter
 
-from litellm.litellm_core_utils.core_helpers import SupportsGet, require_get
 from litellm.litellm_core_utils.litellm_logging import Logging as LiteLLMLoggingObj
 from litellm.llms.base_llm.search.transformation import (
     BaseSearchConfig,
@@ -409,14 +408,14 @@ class AgentCoreSearchConfig(BaseSearchConfig, BaseAWSLLM):
 
         return SearchResponse(results=results, object="search")
 
-    def _tool_error_message(self, response_json: Mapping[str, object] | SupportsGet) -> str:
+    def _tool_error_message(self, response_json: Mapping[str, object]) -> str:
         texts: Final = tuple(
             text for block in self._text_blocks(response_json) if isinstance(text := block.get("text"), str)
         )
         return " ".join(texts) if texts else json.dumps(response_json.get("result"))[:500]
 
     @staticmethod
-    def _text_blocks(response_json: Mapping[str, object] | SupportsGet) -> tuple[Mapping[str, object], ...]:
+    def _text_blocks(response_json: Mapping[str, object]) -> tuple[Mapping[str, object], ...]:
         result: Final = response_json.get("result")
         content: Final = result.get("content") if isinstance(result, dict) else None
         if not isinstance(content, Sequence) or isinstance(content, (str, bytes)):
@@ -424,7 +423,7 @@ class AgentCoreSearchConfig(BaseSearchConfig, BaseAWSLLM):
         return tuple(block for block in content if isinstance(block, dict) and block.get("type") == "text")
 
     @staticmethod
-    def _parse_mcp_body(raw_response: httpx.Response) -> Mapping[str, object] | SupportsGet:
+    def _parse_mcp_body(raw_response: httpx.Response) -> Mapping[str, object]:
         """
         Parse a JSON or SSE-framed (Streamable HTTP transport) MCP response.
 
@@ -434,7 +433,7 @@ class AgentCoreSearchConfig(BaseSearchConfig, BaseAWSLLM):
         """
         text: Final = raw_response.text
         if not text.lstrip().startswith(_SSE_LINE_PREFIXES):
-            return require_get(_JSON_VALUE.validate_python(raw_response.json()))
+            return raw_response.json()
 
         events: Final = tuple(_iter_sse_events(text))
         response_event: Final = next(

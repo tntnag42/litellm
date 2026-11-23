@@ -16,8 +16,6 @@ from dataclasses import dataclass
 from threading import Lock
 from typing import TYPE_CHECKING, Any, Final
 
-from pydantic import TypeAdapter
-
 import litellm
 from litellm._logging import print_verbose, verbose_logger
 from litellm.constants import DEFAULT_MAX_REDIS_BATCH_CACHE_SIZE, DEFAULT_REDIS_BATCH_CACHE_EXPIRY_SECONDS
@@ -30,13 +28,11 @@ from .redis_cache import RedisCache, RedisCircuitBreakerOpenError, log_redis_fai
 if TYPE_CHECKING:
     from opentelemetry.trace import Span as _Span
 
-    Span = _Span
+    Span = _Span | Any
 else:
     Span = Any
 
 from collections import OrderedDict
-
-_BACKFILL_VALUE: Final = TypeAdapter(object)
 
 
 class LimitedSizeOrderedDict(OrderedDict):
@@ -190,9 +186,7 @@ class DualCache(BaseCache):
 
                 if redis_result is not None:
                     # Update in-memory cache with the value from Redis
-                    self.in_memory_cache.set_cache(
-                        key, _BACKFILL_VALUE.validate_python(redis_result), **self._backfill_kwargs(kwargs)
-                    )
+                    self.in_memory_cache.set_cache(key, redis_result, **self._backfill_kwargs(kwargs))
 
                 result = redis_result
 
@@ -270,9 +264,7 @@ class DualCache(BaseCache):
 
                 if redis_result is not None:
                     # Update in-memory cache with the value from Redis
-                    await self.in_memory_cache.async_set_cache(
-                        key, _BACKFILL_VALUE.validate_python(redis_result), **self._backfill_kwargs(kwargs)
-                    )
+                    await self.in_memory_cache.async_set_cache(key, redis_result, **self._backfill_kwargs(kwargs))
 
                 result = redis_result
 

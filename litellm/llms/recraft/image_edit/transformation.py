@@ -1,4 +1,3 @@
-from collections.abc import Sequence
 from io import BufferedReader
 from typing import TYPE_CHECKING, Any, Final, Protocol, cast, runtime_checkable
 
@@ -112,7 +111,7 @@ class RecraftImageEditConfig(BaseImageEditConfig):
         self,
         model: str,
         prompt: str | None,
-        image: FileTypes | Sequence[FileTypes | None] | None,
+        image: FileTypes | None,
         image_edit_optional_request_params: dict,
         litellm_params: GenericLiteLLMParams,
         headers: dict,
@@ -144,7 +143,7 @@ class RecraftImageEditConfig(BaseImageEditConfig):
 
     def _get_image_files_for_request(
         self,
-        image: FileTypes | Sequence[FileTypes | None] | None,
+        image: FileTypes | None,
     ) -> list[tuple[str, Any]]:
         files_list: Final[list[tuple[str, Any]]] = []
 

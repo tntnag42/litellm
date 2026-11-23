@@ -11,14 +11,13 @@ from datetime import datetime, timezone
 from functools import partial
 from itertools import groupby
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final, NamedTuple, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Final, NamedTuple, Protocol, TypeVar
 
 from pydantic import TypeAdapter
 from typing_extensions import ReadOnly, TypedDict
 
 from litellm._logging import verbose_proxy_logger
 from litellm.constants import SPEND_LOG_WRITE_BATCH_MAX_BYTES, SPEND_LOG_WRITE_BATCH_MAX_ROWS
-from litellm.litellm_core_utils.core_helpers import require_attributes
 from litellm.litellm_core_utils.llm_cost_calc.guardrail_cost import billed_guardrail_cost_by_unit
 from litellm.proxy._types import DB_RETRY_SAFE_ERROR_TYPES
 from litellm.proxy.db.spend_log_batching import spend_log_write_batches
@@ -199,15 +198,11 @@ async def _upsert_rows_with_retry(
     return await _upsert_rows_with_retry(retryable, upsert_row, label, sleep, retries_left - 1)
 
 
-class _GuardrailStatusText(Protocol):
-    def lower(self) -> str: ...
-
-
-def guardrail_status_to_action(status: object) -> str:
+def guardrail_status_to_action(status: str | None) -> str:
     """Map StandardLogging guardrail_status to blocked/passed/flagged/not_run."""
     if not status:
         return "passed"
-    s: Final = require_attributes(status, _GuardrailStatusText, "lower").lower()
+    s: Final = (status or "").lower()
     if s == "not_run":
         return "not_run"
     if "intervened" in s or "block" in s:
@@ -217,7 +212,7 @@ def guardrail_status_to_action(status: object) -> str:
     return "passed"
 
 
-def _parse_guardrail_info_from_payload(payload: Mapping[str, object]) -> Sequence[Mapping[str, object]]:
+def _parse_guardrail_info_from_payload(payload: Mapping[str, object]) -> Sequence[Mapping[str, Any]]:
     """Extract guardrail_information from spend log payload metadata."""
     meta = payload.get("metadata")
     if not meta:

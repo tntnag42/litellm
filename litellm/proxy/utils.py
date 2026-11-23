@@ -24,7 +24,6 @@ from collections.abc import (
     Mapping,
     Sequence,
 )
-from collections.abc import Set as AbstractSet
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
@@ -54,7 +53,7 @@ from typing import (
 
 import anyio
 import httpx
-from typing_extensions import Never, ReadOnly, TypedDict, Unpack
+from typing_extensions import Never, ReadOnly, TypedDict
 
 from litellm import _custom_logger_compatible_callbacks_literal
 from litellm.constants import (
@@ -197,8 +196,6 @@ from litellm.litellm_core_utils.core_helpers import (
     has_attributes,
     independent_snapshot,
     is_expected_client_error,
-    iter_items,
-    json_contains,
     require_attributes,
 )
 from litellm.litellm_core_utils.deployment_pricing import pricing_models
@@ -391,29 +388,20 @@ if TYPE_CHECKING:
     from litellm.types.mcp_server.mcp_server_manager import MCPServer
     from litellm.types.proxy.policy_engine.pipeline_types import GuardrailPipeline, PipelineStep
 
-    Span = _Span
+    Span = _Span | object
 else:
     Span = Any
 
 _T: Final = TypeVar("_T")
 
 
+class _ViewCountRow(TypedDict):
+    view_count: ReadOnly[int]
+    view_names: ReadOnly[Sequence[str] | None]
+
+
 class _RelTuplesRow(TypedDict):
     reltuples: ReadOnly[int]
-
-
-class _DualCacheGetKwargs(TypedDict, total=False, extra_items=object):
-    parent_otel_span: ReadOnly[Span | None]
-
-
-class _ExpiresSlot(Protocol):
-    expires: datetime | str | None
-
-
-def _expires_slots(rows: Sequence[object] | None) -> Iterator[_ExpiresSlot]:
-    if rows is not None and len(rows) > 0:
-        return (require_attributes(row, _ExpiresSlot, "expires") for row in rows)
-    return iter(())
 
 
 _ROOTED_STREAM_LOGGING_TASKS: Final[set[asyncio.Task[None]]] = set()  # mutable-ok: strong refs keep tasks alive
@@ -622,7 +610,7 @@ class InternalUsageCache:
         self,
         key: str,
         local_only: bool = False,
-        **kwargs: Unpack[_DualCacheGetKwargs],
+        **kwargs: object,
     ) -> object:
         return self.dual_cache.get_cache(
             key=key,
@@ -2568,7 +2556,7 @@ class ProxyLogging:
         for callback in failure_callbacks:
             add_configured_callback_to_specific_event(callback, "failure")
 
-    async def update_request_status(self, litellm_call_id: object, status: Literal["success", "fail"]):
+    async def update_request_status(self, litellm_call_id: str, status: Literal["success", "fail"]):
         # only use this if slack alerting is being used
         if self.alerting is None:
             return
@@ -4964,7 +4952,7 @@ class ProxyLogging:
     async def post_mcp_call_hook(
         self,
         response: "CallToolResult",
-        request_data: Mapping[str, object],
+        request_data: Mapping[str, Any],
         user_api_key_dict: UserAPIKeyAuth | None = None,
     ) -> "CallToolResult":
         """
@@ -6343,9 +6331,7 @@ class PrismaClient:
             required_view: Final = "LiteLLM_VerificationTokenView"
             expected_views_str: Final = ", ".join(f"'{view}'" for view in expected_views)
             pg_schema: Final = os.getenv("DATABASE_SCHEMA", "public")
-            ret: Final = await query_raw_rows(
-                self.db,
-                f"""
+            ret: Final[Sequence[_ViewCountRow]] = await self.db.query_raw(f"""
                 WITH existing_views AS (
                     SELECT viewname
                     FROM pg_views
@@ -6357,15 +6343,14 @@ class PrismaClient:
                     (SELECT COUNT(*) FROM existing_views) AS view_count,
                     ARRAY_AGG(viewname) AS view_names
                 FROM existing_views
-                """,
-            )
+                """)
             expected_total_views: Final = len(expected_views)
             if ret[0]["view_count"] == expected_total_views:
                 verbose_proxy_logger.info("All necessary views exist!")
                 return
             else:
                 ## check if required view exists ##
-                if ret[0]["view_names"] and not json_contains(ret[0]["view_names"], required_view):
+                if ret[0]["view_names"] and required_view not in ret[0]["view_names"]:
                     await self.health_check()  # make sure we can connect to db
                     await create_view_tolerating_race(
                         self.db,
@@ -6391,12 +6376,10 @@ class PrismaClient:
                     else:
                         # don't block execution if these views are missing
                         # Convert lists to sets for efficient difference calculation
-                        ret_view_names_set: Final[AbstractSet[object]] = (
-                            set(iter_items(ret[0]["view_names"])) if ret[0]["view_names"] else set()
-                        )
+                        ret_view_names_set: Final = set(ret[0]["view_names"]) if ret[0]["view_names"] else set()
                         expected_views_set: Final = set(expected_views)
                         # Find missing views
-                        missing_views: Final = expected_views_set.difference(ret_view_names_set)
+                        missing_views: Final = expected_views_set - ret_view_names_set
 
                         verbose_proxy_logger.warning(
                             "\n\n\x1b[93mNot all views exist in db, needed for UI 'Usage' tab. Missing=%s.\nRun 'create_views.py' from https://github.com/BerriAI/litellm/tree/main/scripts/db to create missing views.\x1b[0m\n",
@@ -6516,41 +6499,41 @@ class PrismaClient:
                             status_code=400,
                             detail={"error": f"No token passed in. Token={token}"},
                         )
-                    token_row: Final = await VerificationTokenRepository(self).table.find_unique(
+                    response = await VerificationTokenRepository(self).table.find_unique(
                         where={"token": hashed_token},
                         include={"litellm_budget_table": True},
                     )
-                    if token_row is None:
+                    if response is not None:
+                        # for prisma we need to cast the expires time to str
+                        if response.expires is not None and isinstance(response.expires, datetime):
+                            response.expires = response.expires.isoformat()
+                    else:
+                        # Token does not exist.
                         raise HTTPException(
                             status_code=status.HTTP_401_UNAUTHORIZED,
                             detail=f"Authentication Error: invalid user key - user key does not exist in db. User Key={token}",
                         )
-                    # for prisma we need to cast the expires time to str
-                    token_expiry: Final = require_attributes(token_row, _ExpiresSlot, "expires")
-                    if isinstance(token_expiry.expires, datetime):
-                        token_expiry.expires = token_expiry.expires.isoformat()
-                    response = token_row
                 elif query_type == "find_all" and user_id is not None:
-                    user_tokens: Final = await VerificationTokenRepository(self).table.find_many(
+                    response = await VerificationTokenRepository(self).table.find_many(
                         where={"user_id": user_id},
                         include={"litellm_budget_table": True},
                     )
-                    for r in _expires_slots(user_tokens):
-                        if isinstance(r.expires, datetime):
-                            r.expires = r.expires.isoformat()
-                    response = user_tokens
+                    if response is not None and len(response) > 0:
+                        for r in response:
+                            if isinstance(r.expires, datetime):
+                                r.expires = r.expires.isoformat()
                 elif query_type == "find_all" and team_id is not None:
-                    team_tokens: Final = await VerificationTokenRepository(self).table.find_many(
+                    response = await VerificationTokenRepository(self).table.find_many(
                         take=limit,
                         where={"team_id": team_id},
                         include={"litellm_budget_table": True},
                     )
-                    for r in _expires_slots(team_tokens):
-                        if isinstance(r.expires, datetime):
-                            r.expires = r.expires.isoformat()
-                    response = team_tokens
+                    if response is not None and len(response) > 0:
+                        for r in response:
+                            if isinstance(r.expires, datetime):
+                                r.expires = r.expires.isoformat()
                 elif query_type == "find_all" and expires is not None and reset_at is not None:
-                    budget_reset_tokens: Final = await VerificationTokenRepository(self).table.find_many(
+                    response = await VerificationTokenRepository(self).table.find_many(
                         take=limit,
                         where={
                             "OR": [
@@ -6561,10 +6544,10 @@ class PrismaClient:
                             "NOT": {"budget_duration": None},
                         },
                     )
-                    for r in _expires_slots(budget_reset_tokens):
-                        if isinstance(r.expires, datetime):
-                            r.expires = r.expires.isoformat()
-                    response = budget_reset_tokens
+                    if response is not None and len(response) > 0:
+                        for r in response:
+                            if isinstance(r.expires, datetime):
+                                r.expires = r.expires.isoformat()
                 elif query_type == "find_all":
                     where_filter: Final[dict[str, dict[str, Sequence[str]]]] = {}
                     if token is not None:
@@ -6967,7 +6950,7 @@ class PrismaClient:
                     include=include_object_permission,
                 )
                 verbose_proxy_logger.debug("\033[91m" + f"DB Token Table update succeeded {response}" + "\033[0m")
-                _data: Mapping[str, object] = {}
+                _data: dict = {}
                 if response is not None:
                     try:
                         _data = response.model_dump()

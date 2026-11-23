@@ -5,8 +5,6 @@ Tencent TokenHub exposes an Anthropic-compatible Messages API endpoint
 alongside its standard OpenAI-compatible chat completions endpoint.
 """
 
-from collections.abc import Sequence
-
 import litellm
 from litellm.litellm_core_utils.url_utils import join_api_base
 from litellm.llms.anthropic.messages.native.transformation import (
@@ -48,7 +46,7 @@ class TencentAnthropicMessagesConfig(AnthropicMessagesConfig):
         self,
         headers: dict,
         model: str,
-        messages: Sequence[object],
+        messages: list[object],
         optional_params: dict,
         litellm_params: dict,
         api_key: str | None = None,

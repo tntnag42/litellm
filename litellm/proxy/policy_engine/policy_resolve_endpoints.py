@@ -10,11 +10,9 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Final
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import TypeAdapter
 
 from litellm._logging import verbose_proxy_logger
 from litellm.constants import MAX_POLICY_ESTIMATE_IMPACT_ROWS
-from litellm.litellm_core_utils.core_helpers import require_attributes
 from litellm.proxy._types import UserAPIKeyAuth
 from litellm.proxy.auth.route_checks import RouteChecks
 from litellm.proxy.auth.user_api_key_auth import user_api_key_auth
@@ -37,7 +35,6 @@ if TYPE_CHECKING:
     from prisma import models as prisma_models
 
 router: Final = APIRouter()
-_DECODED_METADATA: Final = TypeAdapter(object)
 
 
 def _build_alias_where(field: str, patterns: Sequence[str]) -> dict[str, object]:
@@ -73,10 +70,9 @@ def _parse_metadata(raw_metadata: object) -> dict:
         return {}
     if isinstance(raw_metadata, str):
         try:
-            decoded: Final = _DECODED_METADATA.validate_python(json.loads(raw_metadata))
+            return json.loads(raw_metadata)
         except (json.JSONDecodeError, TypeError):
             return {}
-        return require_attributes(decoded, dict[str, object], "get")
     return raw_metadata if isinstance(raw_metadata, dict) else {}
 
 

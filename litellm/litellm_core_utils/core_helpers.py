@@ -1,25 +1,15 @@
 # What is this?
 ## Helper utilities
 import copy
-import json
 import logging
 import math
 import re
-from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
+import sys
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from http import HTTPStatus
 from types import MappingProxyType
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Final,
-    Literal,
-    Protocol,
-    TypeVar,
-    cast,
-    overload,
-    runtime_checkable,
-)
+from typing import TYPE_CHECKING, Any, Final, Literal, Protocol, TypeVar, cast, runtime_checkable
 
 import httpx
 from pydantic import BaseModel, TypeAdapter, ValidationError
@@ -38,7 +28,7 @@ if TYPE_CHECKING:
 
     from litellm.types.utils import ClaudeSubscriptionUsage, ModelResponseStream, StandardLoggingKubernetesPodRouting
 
-    Span = _Span
+    Span = _Span | Any
 else:
     Span = Any
 
@@ -192,6 +182,11 @@ class _SupportsIter(Protocol):
     def __iter__(self) -> Iterator[object]: ...
 
 
+@runtime_checkable
+class _SupportsGetItem(Protocol):
+    def __getitem__(self, key: str | int, /) -> object: ...
+
+
 def attribute_or_none(source: object, name: str) -> object:
     return getattr(source, name, None)
 
@@ -253,52 +248,8 @@ def has_attributes(
 def require_attributes(value: object, shape: type[_Shape], *names: str) -> _Shape:
     if has_attributes(value, shape, *names):
         return value
-    for name in names:
-        getattr(value, name)
-    raise AttributeError(f"{type(value).__name__!r} object lacks {names!r}")
-
-
-def int_of(value: object) -> int:
-    return int(value)  # pyright: ignore[reportArgumentType]  # int() raises its own TypeError
-
-
-def float_of(value: object) -> float:
-    return float(value)  # pyright: ignore[reportArgumentType]  # float() raises its own TypeError
-
-
-def length_of(value: object) -> int:
-    return len(value)  # pyright: ignore[reportArgumentType]  # len() raises its own TypeError
-
-
-def joined(separator: str, parts: object) -> str:
-    return separator.join(parts)  # pyright: ignore[reportArgumentType]  # join raises its own TypeError
-
-
-def json_loaded(document: object) -> object:
-    return json.loads(document)  # pyright: ignore[reportArgumentType, reportAny]  # loads raises its own TypeError
-
-
-def set_item(container: object, key: object, value: object) -> None:
-    container[key] = value  # pyright: ignore[reportIndexIssue]  # raises its own TypeError
-
-
-def sum_of(left: object, right: object) -> object:
-    return left + right  # pyright: ignore[reportOperatorIssue, reportUnknownVariableType]  # + raises its TypeError
-
-
-def concatenated(prefix: str, suffix: object) -> str:
-    return prefix + suffix  # pyright: ignore[reportOperatorIssue, reportUnknownVariableType]  # + raises its TypeError
-
-
-def spread(value: object) -> tuple[object, ...]:
-    return (*value,)  # pyright: ignore[reportGeneralTypeIssues, reportUnknownVariableType]  # * raises its TypeError
-
-
-def callable_of(value: object) -> Callable[..., object]:
-    if callable(value):
-        return value
-    value()  # pyright: ignore[reportCallIssue]  # raises its own TypeError
-    raise TypeError(f"{type(value).__name__!r} object is not callable")
+    missing: Final = next(name for name in names if not hasattr(value, name))
+    raise AttributeError(f"'{type(value).__name__}' object has no attribute '{missing}'", name=missing, obj=value)
 
 
 class KeywordArguments(Protocol):
@@ -307,29 +258,12 @@ class KeywordArguments(Protocol):
     def __getitem__(self, key: str, /) -> object: ...
 
 
-def keyword_arguments(value: object, target: Callable[..., object]) -> KeywordArguments:
+def keyword_arguments(value: object, target: type[object]) -> KeywordArguments:
     if has_attributes(value, KeywordArguments, "keys"):
         return value
-    target(**value)  # pyright: ignore[reportCallIssue]  # ** fails before target runs
-    raise TypeError(f"argument after ** must be a mapping, not {type(value).__name__}")
-
-
-def unpackable_mapping(value: object) -> KeywordArguments:
-    if has_attributes(value, KeywordArguments, "keys"):
-        return value
-    return {**value}  # pyright: ignore[reportGeneralTypeIssues, reportUnknownVariableType]  # ** raises its TypeError
-
-
-class SupportsGet(Protocol):
-    @overload
-    def get(self, key: str, /) -> object: ...
-
-    @overload
-    def get(self, key: str, default: object, /) -> object: ...
-
-
-def require_get(value: object) -> SupportsGet:
-    return require_attributes(value, SupportsGet, "get")
+    raise TypeError(
+        f"{target.__module__}.{target.__qualname__}() argument after ** must be a mapping, not {type(value).__name__}"
+    )
 
 
 def iter_items(value: object) -> Iterable[object]:
@@ -338,19 +272,31 @@ def iter_items(value: object) -> Iterable[object]:
         return listed
     if isinstance(value, _SupportsIter):
         return value
-    return iter(value)  # pyright: ignore[reportCallIssue, reportArgumentType, reportUnknownVariableType]  # raises
+    if isinstance(value, _SupportsGetItem):
+        return iter(value)
+    raise TypeError(f"'{type(value).__name__}' object is not iterable")
 
 
-def dict_from_pairs(value: object) -> Mapping[object, object]:
-    return dict[object, object](value)  # pyright: ignore[reportCallIssue, reportArgumentType]  # dict() raises
+@runtime_checkable
+class _SupportsContains(Protocol):
+    def __contains__(self, key: object, /) -> bool: ...
+
+
+_NOT_A_CONTAINER: Final = "is not a container or iterable" if sys.version_info >= (3, 14) else "is not iterable"
 
 
 def json_contains(value: object, key: object) -> bool:
-    return key in value  # pyright: ignore[reportOperatorIssue]  # in raises its own TypeError
+    if isinstance(value, _SupportsContains):
+        return key in value
+    if isinstance(value, (_SupportsIter, _SupportsGetItem)):
+        return key in tuple(iter_items(value))
+    raise TypeError(f"argument of type '{type(value).__name__}' {_NOT_A_CONTAINER}")
 
 
-def subscript(value: object, key: object) -> object:
-    return value[key]  # pyright: ignore[reportIndexIssue, reportUnknownVariableType]  # [] raises its own TypeError
+def subscript(value: object, key: str | int) -> object:
+    if isinstance(value, _SupportsGetItem):
+        return value[key]
+    raise TypeError(f"'{type(value).__name__}' object is not subscriptable")
 
 
 def attribute_items(source: object, name: str) -> Iterable[object]:
@@ -511,7 +457,7 @@ def coerce_token_limit(value: object) -> int | None:
     return None
 
 
-_FINISH_REASON_MAP: Final[Mapping[str, OpenAIChatCompletionFinishReason]] = {
+_FINISH_REASON_MAP: Final[dict[str, OpenAIChatCompletionFinishReason]] = {
     # Anthropic
     "stop_sequence": "stop",
     "end_turn": "stop",
@@ -581,7 +527,7 @@ def map_finish_reason(finish_reason: str) -> OpenAIChatCompletionFinishReason:
 
 
 def remove_index_from_tool_calls(
-    messages: Sequence[AllMessageValues] | None,
+    messages: list[AllMessageValues] | None,
 ):
     if messages is not None:
         for message in messages:
@@ -825,7 +771,7 @@ def unbind_budget_reservation_from_callbacks(litellm_params: Mapping[str, object
 def reconstruct_model_name(
     model_name: str,
     custom_llm_provider: str | None,
-    metadata: Mapping,
+    metadata: dict,
 ) -> str:
     """Reconstruct full model name with provider prefix for logging."""
     # Check if deployment model name from router metadata is available (has original prefix)
@@ -1075,7 +1021,7 @@ def independent_snapshot(
     return {key: _copied_value(key, value) for key, value in sanitized.items()}
 
 
-def filter_exceptions_from_params(data: object, max_depth: int = 20) -> object:
+def filter_exceptions_from_params(data: object, max_depth: int = 20) -> Any:
     """
     Recursively filter out Exception objects and callable objects from dicts/lists.
 
@@ -1146,18 +1092,10 @@ def filter_internal_params(data: Mapping[str, _Value]) -> dict[str, _Value]:
     return {k: v for k, v in data.items() if k not in MCP_HANDLER_KWARG_NAMES}
 
 
-@overload
 def redact_nested_match_and_regex_keys(
-    payload: dict | list[dict[str, object]] | str | None,
+    payload: dict | list[Any] | str | None,
     keys: Collection[str] = ("match", "regex"),
-) -> dict | list[dict[str, object]] | str | None: ...
-
-
-@overload
-def redact_nested_match_and_regex_keys(payload: object, keys: Collection[str] = ("match", "regex")) -> object: ...
-
-
-def redact_nested_match_and_regex_keys(payload: object, keys: Collection[str] = ("match", "regex")) -> object:
+) -> dict | list[Any] | str | None:
     """
     Deep-copy `payload` and replace every configured string field with "[REDACTED]"
     anywhere in nested dict/list structures.
@@ -1167,7 +1105,7 @@ def redact_nested_match_and_regex_keys(payload: object, keys: Collection[str] = 
     if payload is None or isinstance(payload, str):
         return payload
     try:
-        redacted: Final = copy.deepcopy(payload)
+        redacted: Final[dict | list[object] | str | None] = copy.deepcopy(payload)
     except Exception:
         return payload
 

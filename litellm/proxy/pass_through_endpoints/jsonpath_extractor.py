@@ -4,26 +4,9 @@ JSONPath Extractor Module
 Extracts field values from data using simple JSONPath-like expressions.
 """
 
-from collections.abc import Mapping, Sequence
-from itertools import chain
-from typing import Final
-
-from pydantic import TypeAdapter
+from typing import Any, Final
 
 from litellm._logging import verbose_proxy_logger
-from litellm.litellm_core_utils.core_helpers import as_object_list, as_str_mapping
-
-_JSON_VALUE: Final = TypeAdapter(object)
-
-
-def _json_object(value: object) -> Mapping[str, object] | None:
-    mapping: Final = as_str_mapping(value)
-    return mapping if isinstance(value, dict) else None
-
-
-def _matched_values(match: object) -> Sequence[object]:
-    listed: Final = as_object_list(match)
-    return listed if listed is not None else (match,)
 
 
 class JsonPathExtractor:
@@ -50,9 +33,8 @@ class JsonPathExtractor:
             try:
                 value = JsonPathExtractor.evaluate(data, expr)
                 if value:
-                    listed = as_object_list(value)
-                    if listed is not None:
-                        extracted_values.extend([str(v) for v in listed if v])
+                    if isinstance(value, list):
+                        extracted_values.extend([str(v) for v in value if v])
                     else:
                         extracted_values.append(str(value))
             except Exception as e:
@@ -61,7 +43,7 @@ class JsonPathExtractor:
         return "\n".join(extracted_values)
 
     @staticmethod
-    def evaluate(data: dict, expr: str) -> object:
+    def evaluate(data: dict, expr: str) -> str | list[str] | None:
         """
         Evaluate a simple JSONPath-like expression.
 
@@ -74,7 +56,7 @@ class JsonPathExtractor:
             return None
 
         parts: Final = expr.replace("[*]", ".[*]").split(".")
-        current: object = _JSON_VALUE.validate_python(data)
+        current: Any = data
 
         for i, part in enumerate(parts):
             if current is None:
@@ -82,8 +64,7 @@ class JsonPathExtractor:
 
             if part == "[*]":
                 # Wildcard - current should be a list
-                items = as_object_list(current)
-                if items is None:
+                if not isinstance(current, list):
                     return None
 
                 # Get remaining path
@@ -92,13 +73,20 @@ class JsonPathExtractor:
                     return current
 
                 # Recursively evaluate remaining path for each item
-                matches = (JsonPathExtractor.evaluate(item, remaining_path) for item in items if isinstance(item, dict))
-                results = list(chain.from_iterable(_matched_values(match) for match in matches if match))
+                results = []
+                for item in current:
+                    if isinstance(item, dict):
+                        result = JsonPathExtractor.evaluate(item, remaining_path)
+                        if result:
+                            if isinstance(result, list):
+                                results.extend(result)
+                            else:
+                                results.append(result)
                 return results if results else None
 
-            mapping = _json_object(current)
-            if mapping is None:
+            elif isinstance(current, dict):
+                current = current.get(part)
+            else:
                 return None
-            current = mapping.get(part)
 
         return current

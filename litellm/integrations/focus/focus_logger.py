@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, ClassVar, Final, cast
 
@@ -46,7 +45,7 @@ class FocusLogger(CustomLogger):
         cron_offset_minute: int | None = None,
         interval_seconds: int | None = None,
         prefix: str | None = None,
-        destination_config: Mapping[str, str | None] | None = None,
+        destination_config: dict[str, Any] | None = None,
         **kwargs: Unpack[_CustomLoggerOptions],
     ) -> None:
         super().__init__(**kwargs)

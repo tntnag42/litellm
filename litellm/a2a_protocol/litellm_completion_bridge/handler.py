@@ -12,7 +12,7 @@ A2A Streaming Events (in order):
 
 from collections.abc import AsyncIterator, Mapping
 from types import MappingProxyType
-from typing import Final
+from typing import Any, Final
 
 import litellm
 from litellm._logging import verbose_logger
@@ -24,7 +24,6 @@ from litellm.a2a_protocol.litellm_completion_bridge.transformation import (
 from litellm.a2a_protocol.providers.config_manager import A2AProviderConfigManager
 from litellm.constants import A2A_CHAT_COMPLETION_BRIDGE_PROVIDERS, A2A_COMPLETION_BRIDGE_WORKING_MESSAGE
 from litellm.interactions.agents.utils import merge_agent_headers
-from litellm.litellm_core_utils.core_helpers import require_attributes
 from litellm.litellm_core_utils.streaming_handler import CustomStreamWrapper
 from litellm.types.utils import ModelResponse
 
@@ -80,7 +79,7 @@ class A2ACompletionBridgeHandler:
 
     @staticmethod
     def _build_completion_params(
-        params: Mapping[str, object],
+        params: dict[str, Any],
         litellm_params: Mapping[str, object],
         api_base: str | None,
         agent_extra_headers: Mapping[str, str] | None,
@@ -88,7 +87,7 @@ class A2ACompletionBridgeHandler:
         stream: bool,
     ) -> Mapping[str, object]:
         # Extract message from params
-        message: Final = require_attributes(params.get("message", {}), dict[str, object], "get")
+        message: Final = params.get("message", {})
 
         # Transform A2A message to OpenAI format
         openai_messages: Final = A2ACompletionBridgeTransformation.a2a_message_to_openai_messages(message)
@@ -101,7 +100,7 @@ class A2ACompletionBridgeHandler:
             verbose_logger.info("A2A completion bridge: model=%s, api_base=%s", full_model, api_base)
 
         # Build completion params dict
-        completion_params: Final[dict[str, object]] = {
+        completion_params: Final[dict[str, Any]] = {
             "model": full_model,
             "messages": openai_messages,
             "api_base": api_base,
@@ -133,7 +132,7 @@ class A2ACompletionBridgeHandler:
     async def handle_non_streaming(
         request_id: str,
         params: dict[str, object],
-        litellm_params: Mapping[str, object],
+        litellm_params: dict[str, Any],
         api_base: str | None = None,
         agent_extra_headers: dict[str, str] | None = None,
         *,
@@ -195,8 +194,8 @@ class A2ACompletionBridgeHandler:
     @staticmethod
     async def handle_streaming(
         request_id: str,
-        params: dict[str, object],
-        litellm_params: Mapping[str, object],
+        params: dict[str, Any],
+        litellm_params: dict[str, Any],
         api_base: str | None = None,
         agent_extra_headers: dict[str, str] | None = None,
         *,
@@ -246,7 +245,7 @@ class A2ACompletionBridgeHandler:
         # Create streaming context
         ctx: Final = A2AStreamingContext(
             request_id=request_id,
-            input_message=require_attributes(params.get("message", {}), dict[str, object], "get"),
+            input_message=params.get("message", {}),
         )
 
         completion_params: Final = A2ACompletionBridgeHandler._build_completion_params(

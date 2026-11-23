@@ -1753,12 +1753,11 @@ async def get_service_provider_config(request: Request):
         request.url,
         safe_get_request_headers(request),
     )
-    return SCIMServiceProviderConfig(
-        meta={
-            "resourceType": "ServiceProviderConfig",
-            "location": str(request.url),
-        }
-    )
+    meta: Final = {
+        "resourceType": "ServiceProviderConfig",
+        "location": str(request.url),
+    }
+    return SCIMServiceProviderConfig(meta=meta)
 
 
 def _parse_scim_eq_filter(scim_filter: str) -> tuple[str, str] | None:

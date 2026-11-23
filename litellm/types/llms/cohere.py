@@ -1,18 +1,17 @@
-from collections.abc import Sequence
 from typing import Literal
 
 from pydantic import AliasPath, BaseModel, ConfigDict, Field
-from typing_extensions import ReadOnly, Required, TypedDict
+from typing_extensions import Required, TypedDict
 
 
 class CallObject(TypedDict):
-    name: ReadOnly[str]
-    parameters: ReadOnly[object]
+    name: str
+    parameters: dict
 
 
 class ToolResultObject(TypedDict):
-    call: ReadOnly[CallObject]
-    outputs: ReadOnly[Sequence[object]]
+    call: CallObject
+    outputs: list[dict]
 
 
 class ChatHistoryToolResult(TypedDict, total=False):

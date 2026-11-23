@@ -6,9 +6,7 @@ from collections.abc import AsyncIterator, Iterator
 from typing import Final
 
 import httpx
-from pydantic import TypeAdapter
 
-from litellm.litellm_core_utils.core_helpers import iter_items, json_contains, require_get, set_item, subscript
 from litellm.llms.base_llm.chat.transformation import BaseConfig, BaseLLMException
 from litellm.types.llms.openai import OpenAIChatCompletionChunk
 
@@ -31,9 +29,6 @@ class GenAIHubOrchestrationError(BaseLLMException):
 # -------------------------------
 
 
-_DECODED_JSON: Final = TypeAdapter(object)
-
-
 def _now_ts() -> int:
     return int(time.time())
 
@@ -53,21 +48,19 @@ class _StreamParser:
     """Normalize orchestration streaming events into OpenAI-like chunks."""
 
     @staticmethod
-    def _from_orchestration_result(evt: object) -> OpenAIChatCompletionChunk | None:
+    def _from_orchestration_result(evt: dict) -> OpenAIChatCompletionChunk | None:
         """
         Accepts orchestration_result shape and maps it to an OpenAI-like *chunk*.
         """
-        event: Final = require_get(evt)
-        orc_value: Final = event.get("orchestration_result")
-        if not orc_value:
+        orc: Final = evt.get("orchestration_result") or {}
+        if not orc:
             return None
-        orc: Final = require_get(orc_value)
 
         return OpenAIChatCompletionChunk.model_validate(
             {
-                "id": orc.get("id") or event.get("request_id") or "stream-chunk",
+                "id": orc.get("id") or evt.get("request_id") or "stream-chunk",
                 "object": orc.get("object") or "chat.completion.chunk",
-                "created": orc.get("created") or event.get("created") or _now_ts(),
+                "created": orc.get("created") or evt.get("created") or _now_ts(),
                 "model": orc.get("model") or "unknown",
                 "choices": [
                     {
@@ -75,13 +68,13 @@ class _StreamParser:
                         "delta": c.get("delta") or {},
                         "finish_reason": c.get("finish_reason"),
                     }
-                    for c in map(require_get, iter_items(orc.get("choices") or []))
+                    for c in (orc.get("choices") or [])
                 ],
             }
         )
 
     @staticmethod
-    def to_openai_chunk(event_obj: object) -> OpenAIChatCompletionChunk | None:
+    def to_openai_chunk(event_obj: dict) -> OpenAIChatCompletionChunk | None:
         """
         Accepts:
           - {"final_result": <openai-style CHUNK>}   (IMPORTANT: this is just another chunk, NOT terminal)
@@ -92,23 +85,23 @@ class _StreamParser:
           - ValueError for in-stream error objects
         """
         # In-stream error per spec (surface as exception)
-        if json_contains(event_obj, "code") or json_contains(event_obj, "error"):
+        if "code" in event_obj or "error" in event_obj:
             raise ValueError(json.dumps(event_obj))
 
         # FINAL RESULT IS *NOT* TERMINAL: treat it as the next chunk
-        if json_contains(event_obj, "final_result"):
-            fr: Final[object] = subscript(event_obj, "final_result") or {}
+        if "final_result" in event_obj:
+            fr: Final = event_obj["final_result"] or {}
             # ensure it looks like an OpenAI chunk
-            if not json_contains(fr, "object"):
-                set_item(fr, "object", "chat.completion.chunk")
+            if "object" not in fr:
+                fr["object"] = "chat.completion.chunk"
             return OpenAIChatCompletionChunk.model_validate(fr)
 
         # Orchestration incremental delta
-        if json_contains(event_obj, "orchestration_result"):
+        if "orchestration_result" in event_obj:
             return _StreamParser._from_orchestration_result(event_obj)
 
         # Already an OpenAI-like chunk
-        if json_contains(event_obj, "choices") and json_contains(event_obj, "object"):
+        if "choices" in event_obj and "object" in event_obj:
             return OpenAIChatCompletionChunk.model_validate(event_obj)
 
         # Unknown / heartbeat / metrics
@@ -154,7 +147,7 @@ class SAPStreamIterator:
                 raise StopIteration
 
             try:
-                obj = _DECODED_JSON.validate_python(json.loads(payload))
+                obj = json.loads(payload)
             except Exception:
                 continue
 
@@ -225,7 +218,7 @@ class AsyncSAPStreamIterator:
                 await self._aclose()
                 raise StopAsyncIteration
             try:
-                obj = _DECODED_JSON.validate_python(json.loads(payload))
+                obj = json.loads(payload)
             except Exception:
                 continue
 

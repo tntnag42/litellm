@@ -4,9 +4,8 @@
 
 from __future__ import annotations
 
-import builtins
 from enum import Enum
-from typing import Final, Literal
+from typing import Any, Final, Literal
 
 from pydantic import AwareDatetime, Base64Str, Field, RootModel
 
@@ -34,7 +33,7 @@ class DocumentContent(LiteLLMBaseModel):
 
 class FunctionCallContent(LiteLLMBaseModel):
     name: str = Field(..., description="The name of the tool to call.")
-    arguments: dict[str, builtins.object] = Field(..., description="The arguments to pass to the function.")
+    arguments: dict[str, Any] = Field(..., description="The arguments to pass to the function.")
     type: Literal["function_call"] = Field(
         ..., description="Used as the OpenAPI type discriminator for the content oneof."
     )
@@ -57,7 +56,7 @@ class UrlContextCallArguments(LiteLLMBaseModel):
 class McpServerToolCallContent(LiteLLMBaseModel):
     name: str = Field(..., description="The name of the tool which was called.")
     server_name: str = Field(..., description="The name of the used MCP server.")
-    arguments: dict[str, builtins.object] = Field(..., description="The JSON object of arguments for the function.")
+    arguments: dict[str, Any] = Field(..., description="The JSON object of arguments for the function.")
     type: Literal["mcp_server_tool_call"] = Field(
         ..., description="Used as the OpenAPI type discriminator for the content oneof."
     )
@@ -124,7 +123,7 @@ class DynamicAgentConfig(LiteLLMBaseModel):
 class Function(LiteLLMBaseModel):
     name: str | None = Field(None, description="The name of the function.")
     description: str | None = Field(None, description="A description of the function.")
-    parameters: builtins.object | None = Field(None, description="The JSON Schema for the function's parameters.")
+    parameters: Any | None = Field(None, description="The JSON Schema for the function's parameters.")
     type: Literal["function"]
 
 
@@ -219,7 +218,7 @@ class ThoughtSignatureDelta(LiteLLMBaseModel):
 
 class FunctionCallDelta(LiteLLMBaseModel):
     name: str | None = None
-    arguments: dict[str, builtins.object] | None = None
+    arguments: dict[str, Any] | None = None
     type: Literal["function_call"] = Field(
         ..., description="Used as the OpenAPI type discriminator for the content oneof."
     )
@@ -253,7 +252,7 @@ class GoogleSearchCallDelta(LiteLLMBaseModel):
 class McpServerToolCallDelta(LiteLLMBaseModel):
     name: str | None = None
     server_name: str | None = None
-    arguments: dict[str, builtins.object] | None = None
+    arguments: dict[str, Any] | None = None
     type: Literal["mcp_server_tool_call"] = Field(
         ..., description="Used as the OpenAPI type discriminator for the content oneof."
     )
@@ -449,7 +448,7 @@ class FunctionResultContent(LiteLLMBaseModel):
     type: Literal["function_result"] = Field(
         ..., description="Used as the OpenAPI type discriminator for the content oneof."
     )
-    result: Result | dict[str, builtins.object] | str = Field(..., description="The result of the tool call.")
+    result: Result | dict[str, Any] | str = Field(..., description="The result of the tool call.")
     call_id: str = Field(..., description="ID to match the ID from the function call block.")
 
 
@@ -482,7 +481,7 @@ class McpServerToolResultContent(LiteLLMBaseModel):
     type: Literal["mcp_server_tool_result"] = Field(
         ..., description="Used as the OpenAPI type discriminator for the content oneof."
     )
-    result: Result | dict[str, builtins.object] | str = Field(..., description="The result of the tool call.")
+    result: Result | dict[str, Any] | str = Field(..., description="The result of the tool call.")
     call_id: str = Field(..., description="ID to match the ID from the MCP server tool call block.")
 
 
@@ -789,7 +788,7 @@ class Interaction(LiteLLMBaseModel):
         None,
         description="The requested modalities of the response (TEXT, IMAGE, AUDIO).",
     )
-    response_format: builtins.object | None = Field(
+    response_format: Any | None = Field(
         None,
         description="Enforces that the generated response is a JSON object that complies with\nthe JSON schema specified in this field.",
     )
@@ -849,7 +848,7 @@ class CreateModelInteractionParams(LiteLLMBaseModel):
         None,
         description="The requested modalities of the response (TEXT, IMAGE, AUDIO).",
     )
-    response_format: builtins.object | None = Field(
+    response_format: Any | None = Field(
         None,
         description="Enforces that the generated response is a JSON object that complies with\nthe JSON schema specified in this field.",
     )
@@ -904,7 +903,7 @@ class CreateAgentInteractionParams(LiteLLMBaseModel):
         None,
         description="The requested modalities of the response (TEXT, IMAGE, AUDIO).",
     )
-    response_format: builtins.object | None = Field(
+    response_format: Any | None = Field(
         None,
         description="Enforces that the generated response is a JSON object that complies with\nthe JSON schema specified in this field.",
     )
@@ -944,7 +943,7 @@ class StepStart(LiteLLMBaseModel):
 
     event_type: Literal["step.start"] = "step.start"
     index: int | None = None
-    step: dict[str, builtins.object] | None = Field(
+    step: dict[str, Any] | None = Field(
         None,
         description="The initial step data (type, content, signature, etc.).",
     )
@@ -959,7 +958,7 @@ class StepDelta(LiteLLMBaseModel):
 
     event_type: Literal["step.delta"] = "step.delta"
     index: int | None = None
-    delta: dict[str, builtins.object] | None = Field(
+    delta: dict[str, Any] | None = Field(
         None,
         description="Incremental content delta (e.g. text, arguments_delta for function calls).",
     )
@@ -988,7 +987,7 @@ class InteractionCreated(LiteLLMBaseModel):
     """Emitted when the interaction is first created (replaces interaction.start)."""
 
     event_type: Literal["interaction.created"] = "interaction.created"
-    interaction: dict[str, builtins.object] | None = None
+    interaction: dict[str, Any] | None = None
     event_id: str | None = Field(
         None,
         description="The event_id token to be used to resume the interaction stream.",
@@ -1010,7 +1009,7 @@ class InteractionCompleted(LiteLLMBaseModel):
     """Emitted when the interaction finishes (replaces interaction.complete)."""
 
     event_type: Literal["interaction.completed"] = "interaction.completed"
-    interaction: dict[str, builtins.object] | None = None
+    interaction: dict[str, Any] | None = None
     event_id: str | None = Field(
         None,
         description="The event_id token to be used to resume the interaction stream.",
@@ -1099,10 +1098,10 @@ class InteractionsAPIResponse(BaseLiteLLMOpenAIResponseObject):
     created: str | None = None
     updated: str | None = None
     # Legacy schema field (Api-Revision: 2026-05-07). Remove after June 8, 2026.
-    outputs: list[dict[str, builtins.object]] | None = None
+    outputs: list[dict[str, Any]] | None = None
     # New schema field (Api-Revision: 2026-05-20).
-    steps: list[dict[str, builtins.object]] | None = None
-    usage: dict[str, builtins.object] | None = None
+    steps: list[dict[str, Any]] | None = None
+    usage: dict[str, Any] | None = None
     continuation_token: str | None = None
 
     _hidden_params: dict = PrivateAttr(default_factory=dict)
@@ -1140,16 +1139,16 @@ class InteractionsAPIStreamingResponse(BaseLiteLLMOpenAIResponseObject):
     created: str | None = None
     updated: str | None = None
     # Legacy schema field (Api-Revision: 2026-05-07). Remove after June 8, 2026.
-    outputs: list[dict[str, builtins.object]] | None = None
+    outputs: list[dict[str, Any]] | None = None
     # New schema field (Api-Revision: 2026-05-20).
-    steps: list[dict[str, builtins.object]] | None = None
-    usage: dict[str, builtins.object] | None = None
-    delta: dict[str, builtins.object] | None = None
+    steps: list[dict[str, Any]] | None = None
+    usage: dict[str, Any] | None = None
+    delta: dict[str, Any] | None = None
     # New schema streaming fields
     index: int | None = None
-    step: dict[str, builtins.object] | None = None
+    step: dict[str, Any] | None = None
     interaction_id: str | None = None
-    interaction: dict[str, builtins.object] | None = None
+    interaction: dict[str, Any] | None = None
     continuation_token: str | None = None
 
     _hidden_params: dict = PrivateAttr(default_factory=dict)
@@ -1200,7 +1199,7 @@ class CancelInteractionResult(BaseLiteLLMOpenAIResponseObject):
 # Backwards compatibility aliases
 InteractionTool = Tool
 InteractionToolChoiceConfig: Final = ToolChoiceConfig
-InteractionsAPIOptionalRequestParams = dict[str, builtins.object]
+InteractionsAPIOptionalRequestParams = dict[str, Any]
 
 # Agent interaction execution environment
-InteractionEnvironment = str | dict[str, builtins.object]
+InteractionEnvironment = str | dict[str, Any]

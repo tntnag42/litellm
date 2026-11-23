@@ -15,7 +15,7 @@ from typing import Final
 import httpx
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
-from pydantic import Field, TypeAdapter
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from litellm._logging import verbose_logger
@@ -25,11 +25,9 @@ from litellm.integrations.otel.model.config import (
     OpenTelemetryV2Config,
 )
 from litellm.integrations.otel.plumbing.providers import register_exporter_factory
-from litellm.litellm_core_utils.core_helpers import SupportsGet, require_get
 
 _AGENTOPS_ENDPOINT: Final = "https://otlp.agentops.ai/v1/traces"
 _AGENTOPS_AUTH_ENDPOINT: Final = "https://api.agentops.ai/v3/auth/token"
-_DECODED_JSON: Final = TypeAdapter(object)
 _AGENTOPS_EXPORTER_KIND: Final = "agentops"
 
 
@@ -118,7 +116,7 @@ def _build_agentops_exporter(spec: ExporterSpec) -> SpanExporter:
     return _LazyAuthAgentOpsExporter(endpoint=spec.endpoint, api_key=options.get("api_key"))
 
 
-def _fetch_agentops_jwt(api_key: str) -> SupportsGet:
+def _fetch_agentops_jwt(api_key: str) -> dict[str, object]:
     # Own a short-lived client rather than ``_get_httpx_client()``: that returns
     # a process-wide cached ``HTTPHandler`` whose connection pool is shared by
     # every caller, so closing it here would break concurrent/subsequent
@@ -131,7 +129,7 @@ def _fetch_agentops_jwt(api_key: str) -> SupportsGet:
         )
         if response.status_code != 200:
             raise RuntimeError(f"Failed to fetch AgentOps token: {response.text}")
-        return require_get(_DECODED_JSON.validate_python(response.json()))
+        return response.json()
 
 
 register_exporter_factory(_AGENTOPS_EXPORTER_KIND, _build_agentops_exporter)

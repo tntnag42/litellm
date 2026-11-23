@@ -81,10 +81,7 @@ class GigaChatPassthroughConfig(BasePassthroughConfig):
         logging_obj: LiteLLMLoggingObj,
         endpoint: str,
     ) -> CostResponseTypes | None:
-        if TYPE_CHECKING:
-            from litellm.main import encoding
-        else:
-            from litellm import encoding
+        from litellm import encoding
         from litellm.types.utils import LlmProviders, ModelResponse
         from litellm.utils import ProviderConfigManager
 

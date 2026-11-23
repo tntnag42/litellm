@@ -45,7 +45,6 @@ _UNOWNED_DIAGNOSTICS_BODY: Final = json.dumps(
 
 _MAPPING_ADAPTER: Final = TypeAdapter(Mapping[str, object])
 _MAPPINGS_ADAPTER: Final = TypeAdapter(tuple[Mapping[str, object], ...])
-_CACHED_VALUE: Final = TypeAdapter(object)
 
 
 class _FirstClaimStore(Protocol):
@@ -356,10 +355,8 @@ class MessageThreadOwnership(CustomLogger):
 
     @with_service_target("message_thread_owners")
     async def _binding(self, message_id: str, user_api_key_dict: "UserAPIKeyAuth") -> _ThreadBinding | None:
-        cached: Final = _CACHED_VALUE.validate_python(
-            await self._owners.async_get_cache(
-                key=_owner_key(message_id), litellm_parent_otel_span=user_api_key_dict.parent_otel_span
-            )
+        cached: Final[object] = await self._owners.async_get_cache(
+            key=_owner_key(message_id), litellm_parent_otel_span=user_api_key_dict.parent_otel_span
         )
         return _as_binding(cached)
 

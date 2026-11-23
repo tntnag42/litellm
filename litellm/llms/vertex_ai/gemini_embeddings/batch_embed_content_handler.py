@@ -12,7 +12,6 @@ from pydantic import ConfigDict, TypeAdapter
 from typing_extensions import ReadOnly, TypedDict
 
 import litellm
-from litellm.litellm_core_utils.core_helpers import keyword_arguments
 from litellm.litellm_core_utils.secret_redaction import redact_string
 from litellm.llms.custom_httpx.http_handler import (
     AsyncHTTPHandler,
@@ -43,7 +42,6 @@ if TYPE_CHECKING:
     from litellm.litellm_core_utils.litellm_logging import Logging as LiteLLMLoggingObj
 
 
-_DECODED_JSON: Final = TypeAdapter(object)
 _HTTPX_RESPONSE: Final = TypeAdapter(httpx.Response, config=ConfigDict(arbitrary_types_allowed=True))
 
 
@@ -308,7 +306,7 @@ class GoogleBatchEmbeddings(VertexLLM):
                 input=input,
                 model_response=model_response,
                 model=model,
-                response_json=_DECODED_JSON.validate_python(_json_response),
+                response_json=_json_response,
                 resolved_files=resolved_files,
             )
         else:
@@ -409,17 +407,18 @@ class GoogleBatchEmbeddings(VertexLLM):
         if response.status_code != 200:
             raise _vertex_error(response)
 
+        _json_response: Final = response.json()
+
         if use_embed_content:
             return process_embed_content_response(
                 input=input,
                 model_response=model_response,
                 model=model,
-                response_json=_DECODED_JSON.validate_python(response.json()),
+                response_json=_json_response,
                 resolved_files=resolved_files,
             )
         else:
-            _predictions_json: Final = _DECODED_JSON.validate_python(response.json())
-            _predictions: Final = dict(**keyword_arguments(_predictions_json, VertexAIBatchEmbeddingsResponseObject))
+            _predictions: Final = VertexAIBatchEmbeddingsResponseObject(**_json_response)
             return process_response(
                 model=model,
                 model_response=model_response,

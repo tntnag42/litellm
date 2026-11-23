@@ -11,7 +11,7 @@ import contextlib
 import copy
 import json
 from collections.abc import AsyncGenerator, AsyncIterable, Awaitable, Callable, Mapping, Sequence
-from typing import TYPE_CHECKING, Final, Protocol, TypeAlias, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, Final, Protocol, TypeAlias, cast, runtime_checkable
 
 import anyio
 from fastapi import HTTPException
@@ -102,10 +102,6 @@ class _EndpointTranslation(Protocol):
 
 def _as_endpoint_translation(translation: _EndpointTranslation) -> _EndpointTranslation:
     return translation
-
-
-def _remainder(counter: int, divisor: object) -> object:
-    return counter % divisor  # pyright: ignore[reportOperatorIssue, reportUnknownVariableType]  # % raises the error
 
 
 def resolve_endpoint_translation(
@@ -757,7 +753,7 @@ class UnifiedLLMGuardrails(CustomLogger):
         request_data: _RequestData,
         user_api_key_dict: UserAPIKeyAuth,
         call_type: str,
-        sampling_rate: object,
+        sampling_rate: int,
         end_of_stream_only: object,
         mappings: Mapping[CallTypes, type["BaseTranslation"]],
         hold_tool_calls: bool = False,
@@ -862,7 +858,7 @@ class UnifiedLLMGuardrails(CustomLogger):
                 if (
                     not end_of_stream_only
                     and not self._chunk_has_finish_reason(item)
-                    and _remainder(chunk_counter, sampling_rate) == 0
+                    and chunk_counter % sampling_rate == 0
                 ):
                     async for out in _round(item, is_final=False):
                         yield out
@@ -1179,7 +1175,7 @@ class UnifiedLLMGuardrails(CustomLogger):
         request_data: dict,
         guardrail_to_apply: CustomGuardrail | None = None,
         buffer_until_moderated_default: bool = False,
-    ) -> AsyncGenerator[object, None]:
+    ) -> AsyncGenerator[Any, None]:
         """
         Passes the entire stream to the guardrail
 
@@ -1204,7 +1200,10 @@ class UnifiedLLMGuardrails(CustomLogger):
         def _streaming_setting(name: str, default: object) -> object:
             return self.resolve_streaming_flag(guardrail_to_apply, name, default)
 
-        sampling_rate: Final = _streaming_setting("streaming_sampling_rate", 5)
+        def _streaming_flag(name: str, default: object) -> Any:
+            return _streaming_setting(name, default)
+
+        sampling_rate: Final[int] = _streaming_flag("streaming_sampling_rate", 5)
         # Only apply the guardrail at end of stream (not per chunk).
         end_of_stream_only: object = _streaming_setting("streaming_end_of_stream_only", False)
         # "block_only" (default) drops guardrail text rewrites on the streaming
@@ -1407,7 +1406,7 @@ class UnifiedLLMGuardrails(CustomLogger):
                 # Process chunk based on sampling rate
                 if buffer_until_moderated:
                     withheld_items.append(item)
-                if _remainder(chunk_counter, sampling_rate) == 0 and pending_scan is None:
+                if chunk_counter % sampling_rate == 0 and pending_scan is None:
                     endpoint_translation = mappings[CallTypes(call_type)]()
                     scan_key = endpoint_translation.get_streaming_scan_key(responses_so_far)
                     if scan_key is not None:

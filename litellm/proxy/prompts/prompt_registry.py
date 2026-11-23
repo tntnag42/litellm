@@ -1,15 +1,11 @@
 import importlib
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from types import ModuleType
 from typing import Final
-
-from pydantic import TypeAdapter
 
 from litellm._logging import verbose_proxy_logger
 from litellm.integrations.custom_prompt_management import CustomPromptManagement
-from litellm.litellm_core_utils.core_helpers import attribute_or_none, callable_of
 from litellm.types.prompts.init_prompts import (
     PromptInfo,
     PromptLiteLLMParams,
@@ -20,7 +16,6 @@ prompt_initializer_registry = {}
 
 DEFAULT_PROMPT_ENVIRONMENT: Final = "development"
 PROMPT_ENVIRONMENT_SERVE_PRECEDENCE: Final = ("production", "staging", "development")
-_PROMPT_INITIALIZERS: Final = TypeAdapter(dict[object, object])
 
 
 def get_base_prompt_id(prompt_id: str) -> str:
@@ -101,11 +96,6 @@ def _default_serve_environment(prompts: Sequence[PromptSpec]) -> str:
     return min(present) if present else DEFAULT_PROMPT_ENVIRONMENT
 
 
-def _module_prompt_initializers(module: ModuleType) -> Mapping[object, object] | None:
-    registry: Final = attribute_or_none(module, "prompt_initializer_registry")
-    return _PROMPT_INITIALIZERS.validate_python(registry) if isinstance(registry, dict) else None
-
-
 def get_prompt_initializer_from_integrations():
     """
     Get prompt initializers by discovering them from the prompt_integrations directory structure.
@@ -116,7 +106,7 @@ def get_prompt_initializer_from_integrations():
     Returns:
         Dict[str, Callable]: A dictionary mapping guardrail types to their initializer functions
     """
-    discovered_initializers: Final[dict[object, object]] = {}
+    discovered_initializers: Final[dict[str, Callable]] = {}
 
     try:
         # Get the path to the prompt_integrations directory
@@ -149,8 +139,8 @@ def get_prompt_initializer_from_integrations():
 
                 # Check for prompt_initializer_registry dictionary
                 if hasattr(module, "prompt_initializer_registry"):
-                    registry = _module_prompt_initializers(module)
-                    if registry is not None:
+                    registry = getattr(module, "prompt_initializer_registry")
+                    if isinstance(registry, dict):
                         discovered_initializers.update(registry)
                         verbose_proxy_logger.debug(
                             "Found prompt_initializer_registry in %s: %s", module_path, list(registry.keys())
@@ -234,7 +224,7 @@ class InMemoryPromptRegistry:
         if initializer is None:
             raise ValueError(f"Unsupported prompt: {prompt_integration}")
 
-        custom_prompt_callback: Final = callable_of(initializer)(litellm_params, prompt)
+        custom_prompt_callback: Final = initializer(litellm_params, prompt)
         if not isinstance(custom_prompt_callback, CustomPromptManagement):
             raise ValueError(  # noqa: TRY004  # prompt endpoints map ValueError to HTTP 400; keep the existing contract
                 f"CustomPromptManagement is required, got {type(custom_prompt_callback)}"

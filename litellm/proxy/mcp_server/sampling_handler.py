@@ -12,7 +12,7 @@ MCP Spec Reference:
 
 import typing
 from collections.abc import Mapping, Sequence
-from typing import Final, NamedTuple, Optional, Protocol, Union, runtime_checkable
+from typing import Any, Final, NamedTuple, Optional, Protocol, Union, runtime_checkable
 
 if typing.TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -37,7 +37,6 @@ from fastapi import HTTPException
 from pydantic import TypeAdapter
 
 from litellm._logging import verbose_logger
-from litellm.litellm_core_utils.core_helpers import length_of, require_attributes
 
 # Guard imports that require the mcp package
 try:
@@ -1063,7 +1062,7 @@ async def _build_completion_kwargs(
     user_api_key_auth: "UserAPIKeyAuth",
     raw_headers: dict[str, str] | None,
     client_ip: str | None,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     openai_messages: Final = _convert_mcp_messages_to_openai(
         messages=params.messages,
         system_prompt=params.system_prompt,
@@ -1105,7 +1104,7 @@ class _AcompletionCall(NamedTuple):
 async def _run_guardrails_and_call_llm(
     completion_kwargs: dict[str, object],
     user_api_key_auth: "UserAPIKeyAuth",
-) -> "ModelResponse | CustomStreamWrapper":
+) -> Any:
     try:
         from litellm.proxy.proxy_server import proxy_logging_obj as _plo
 
@@ -1210,22 +1209,18 @@ async def handle_sampling_create_message(
             client_ip=client_ip,
         )
 
-        openai_messages: Final = completion_kwargs["messages"]
+        openai_messages: Final[Sequence[Mapping[str, object]]] = completion_kwargs["messages"]
         openai_tools: Final = completion_kwargs.get("tools")
         verbose_logger.debug(
             "MCP sampling: calling litellm.acompletion with model=%s, num_messages=%d, has_tools=%s",
             model,
-            length_of(openai_messages),
+            len(openai_messages),
             bool(openai_tools),
         )
 
-        response: Final = require_attributes(
-            await _run_guardrails_and_call_llm(
-                completion_kwargs=completion_kwargs,
-                user_api_key_auth=user_api_key_auth,
-            ),
-            _SamplingCompletionResponse,
-            "choices",
+        response: Final[_SamplingCompletionResponse] = await _run_guardrails_and_call_llm(
+            completion_kwargs=completion_kwargs,
+            user_api_key_auth=user_api_key_auth,
         )
 
         result: Final = _convert_openai_response_to_mcp_result(response=response, model_name=model)

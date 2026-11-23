@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
-from typing_extensions import ReadOnly, TypedDict
+from typing_extensions import TypedDict
 
 from litellm.types.llms.openai import AllMessageValues
 from litellm.types.prompts.init_prompts import PromptSpec
@@ -16,7 +15,7 @@ class PromptManagementClient(TypedDict):
     prompt_id: str | None
     prompt_template: list[AllMessageValues]
     prompt_template_model: str | None
-    prompt_template_optional_params: ReadOnly[Mapping[str, object] | None]
+    prompt_template_optional_params: dict[str, Any] | None
     completed_messages: list[AllMessageValues] | None
 
 

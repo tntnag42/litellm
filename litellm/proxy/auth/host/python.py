@@ -118,7 +118,7 @@ if TYPE_CHECKING:
 JWKS_FETCH_ATTEMPTS: Final = 3
 JWKS_FETCH_RETRY_BACKOFF_SECONDS: Final = 0.25
 OIDC_DISCOVERY_PATH: Final = ".well-known/openid-configuration"
-_DECODED_JSON: Final = TypeAdapter(object)
+_CACHED_DOCUMENT: Final = TypeAdapter(object)
 
 
 class AgentLookup(Protocol):
@@ -518,7 +518,7 @@ class PythonAuthHost:
             what: Final = "OIDC discovery endpoint" if discovery else "JWKS endpoint"
             raise Exception(f"JWT Auth: {what} {url} returned status {response.status_code}: {response.text}")
         try:
-            return _DECODED_JSON.validate_python(response.json())
+            return response.json()
         except Exception as e:
             if discovery:
                 raise Exception(f"JWT Auth: Failed to parse OIDC discovery document at {url}: {e}")
@@ -534,14 +534,14 @@ class PythonAuthHost:
             )
             if response.status_code != 200:
                 raise Exception(f"OIDC UserInfo endpoint returned status {response.status_code}: {response.text}")
-            return _DECODED_JSON.validate_python(response.json())
+            return response.json()
         except Exception as e:
             verbose_proxy_logger.error("Error fetching OIDC UserInfo: %s", e)
             raise Exception(f"Failed to fetch OIDC UserInfo: {e}")
 
     @with_service_target(AUTH_OBJECTS_TARGET)
     async def cached_document(self, key: str) -> object:
-        return _DECODED_JSON.validate_python(await self.jwks_cache.async_get_cache(key))
+        return _CACHED_DOCUMENT.validate_python(await self.jwks_cache.async_get_cache(key))
 
     @with_service_target(AUTH_OBJECTS_TARGET)
     async def cache_document(self, key: str, value: object, ttl_seconds: float) -> None:

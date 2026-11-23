@@ -18,9 +18,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, ClassVar, Final, Protocol, TypedDict
-
-from pydantic import TypeAdapter
+from typing import TYPE_CHECKING, ClassVar, Final, TypedDict
 
 import litellm
 from litellm._logging import verbose_logger
@@ -28,14 +26,6 @@ from litellm.constants import (
     S3_VECTORS_DEFAULT_DIMENSION,
     S3_VECTORS_DEFAULT_DISTANCE_METRIC,
     S3_VECTORS_DEFAULT_NON_FILTERABLE_METADATA_KEYS,
-)
-from litellm.litellm_core_utils.core_helpers import (
-    int_of,
-    iter_items,
-    json_contains,
-    length_of,
-    require_attributes,
-    require_get,
 )
 from litellm.litellm_core_utils.safe_json_dumps import safe_dumps
 from litellm.llms.bedrock.base_aws_llm import BaseAWSLLM
@@ -78,23 +68,6 @@ class S3VectorsQueryMatch(TypedDict, total=False):
 
 class S3VectorsQueryResponse(TypedDict, total=False):
     vectors: Sequence[S3VectorsQueryMatch]
-
-
-_DECODED_JSON: Final = TypeAdapter(object)
-
-
-class _SupportsLower(Protocol):
-    def lower(self) -> object: ...
-
-
-def _configured_dimension(config: Mapping[str, object]) -> int | None:
-    if "dimension" in config:
-        return int_of(config["dimension"])
-    return None
-
-
-def _lowered(value: object) -> object:
-    return require_attributes(value, _SupportsLower, "lower").lower()
 
 
 class S3VectorsRAGIngestion(BaseRAGIngestion, BaseAWSLLM):
@@ -194,7 +167,10 @@ class S3VectorsRAGIngestion(BaseRAGIngestion, BaseAWSLLM):
 
         Returns None if dimension should be auto-detected.
         """
-        return _configured_dimension(self.vector_store_config)
+        if "dimension" in self.vector_store_config:
+            configured_dimension: Final[int] = self.vector_store_config["dimension"]
+            return int(configured_dimension)
+        return None
 
     async def _ensure_config_initialized(self):
         """Lazily initialize S3 Vectors infrastructure."""
@@ -565,18 +541,16 @@ class S3VectorsRAGIngestion(BaseRAGIngestion, BaseAWSLLM):
             )
 
             if query_response.status_code == 200:
-                results: Final = require_attributes(
-                    _DECODED_JSON.validate_python(query_response.json()), S3VectorsQueryResponse, "get"
-                )
+                results: Final[S3VectorsQueryResponse] = query_response.json()
                 matches: Final = results.get("vectors")
-                verbose_logger.debug("Query returned %s results", length_of(results.get("vectors", [])))
+                verbose_logger.debug("Query returned %s results", len(results.get("vectors", [])))
 
                 # Check if query terms appear in results
                 if matches:
-                    for result in iter_items(matches):
-                        metadata = require_get(result).get("metadata", {})
-                        source_text = require_get(metadata).get("source_text", "")
-                        if json_contains(_lowered(source_text), query.lower()):
+                    for result in matches:
+                        metadata = result.get("metadata", {})
+                        source_text = metadata.get("source_text", "")
+                        if query.lower() in source_text.lower():
                             return results
 
                 # Return results even if exact match not found

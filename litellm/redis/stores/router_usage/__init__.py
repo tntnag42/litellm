@@ -179,12 +179,11 @@ class RouterUsageStore:
         try:
             return await self._handle.increment_remote(increments)
         except NativeRedisStoreError as e:
-            details: Final[tuple[object, ...]] = e.args[1:]
             match e.args[:1]:
                 case ("breaker_open",):
-                    raise RedisCircuitBreakerOpenError(*details) from e
+                    raise RedisCircuitBreakerOpenError(*e.args[1:]) from e
                 case ("timeout",):
-                    raise TimeoutError(*details) from e
+                    raise TimeoutError(*e.args[1:]) from e
                 case _:
                     raise
 

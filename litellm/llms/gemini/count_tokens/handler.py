@@ -162,7 +162,7 @@ class GoogleAIStudioTokenCounter:
         system_instruction: Mapping[str, object] | None = None,
         tools: Sequence[Mapping[str, object]] | None = None,
         **kwargs: object,
-    ) -> Mapping[str, object]:
+    ) -> dict[str, Any]:
         """
         Count tokens using Google Gen AI Studio countTokens endpoint.
 
