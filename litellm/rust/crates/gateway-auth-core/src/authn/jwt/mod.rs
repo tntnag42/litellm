@@ -28,9 +28,9 @@ use crate::routes::{RouteGroups, passthrough::ForwardedRoutes};
 #[derive(Clone, Debug, Default)]
 pub struct JwtSettings {
     pub config: JwtAuthSettings,
-    /// `litellm_jwtauth.public_key_url`, else `JWT_PUBLIC_KEY_URL`, comma-separated.
+    /// `JWT_PUBLIC_KEY_URL`, comma-separated.
     pub public_key_urls: Vec<String>,
-    /// `litellm_jwtauth.audience`, else `JWT_AUDIENCE`
+    /// `JWT_AUDIENCE`
     pub audience: Option<String>,
     /// `JWT_ISSUER`
     pub issuer: Option<String>,
