@@ -1724,9 +1724,10 @@ def get_key_model_rpm_limit(
         return key_own_limit
 
     # 3. Fallback to team metadata
-    team_limit: Final = get_team_model_rpm_limit(user_api_key_dict)
-    if team_limit is not None:
-        return team_limit
+    if user_api_key_dict.team_metadata:
+        team_limit: Final = user_api_key_dict.team_metadata.get("model_rpm_limit")
+        if team_limit is not None:
+            return team_limit
 
     # 4. Fallback to deployment default_api_key_rpm_limit
     if model_name is not None:
@@ -1755,9 +1756,10 @@ def get_key_model_tpm_limit(
         return key_own_limit
 
     # 3. Fallback to team metadata
-    team_limit: Final = get_team_model_tpm_limit(user_api_key_dict)
-    if team_limit is not None:
-        return team_limit
+    if user_api_key_dict.team_metadata:
+        team_limit: Final = user_api_key_dict.team_metadata.get("model_tpm_limit")
+        if team_limit is not None:
+            return team_limit
 
     # 4. Fallback to deployment default_api_key_tpm_limit
     if model_name is not None:
@@ -2088,7 +2090,12 @@ def get_key_mcp_rpm_limit(
         if result is not None:
             return result
 
-    return get_team_mcp_rpm_limit(user_api_key_dict)
+    if user_api_key_dict.team_metadata:
+        team_limit: Final = user_api_key_dict.team_metadata.get("mcp_rpm_limit")
+        if team_limit is not None:
+            return team_limit
+
+    return None
 
 
 def get_team_mcp_rpm_limit(

@@ -1,10 +1,9 @@
 import sys
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Final, SupportsFloat, SupportsIndex
+from typing import Final
 
 from pydantic import TypeAdapter
-from typing_extensions import Buffer
 
 from litellm.litellm_core_utils.request_timeout_resolver import (
     get_configured_request_timeout,
@@ -35,7 +34,7 @@ def resolve_pass_through_request_timeout(
         proxy_server: Final = sys.modules.get("litellm.proxy.proxy_server")
         if proxy_server is not None:
             global_timeout: Final = getattr(proxy_server, "general_settings", {}).get("pass_through_request_timeout")
-            if isinstance(global_timeout, (str, Buffer, SupportsFloat, SupportsIndex)):
+            if global_timeout is not None:
                 return float(global_timeout)
     except Exception:
         pass

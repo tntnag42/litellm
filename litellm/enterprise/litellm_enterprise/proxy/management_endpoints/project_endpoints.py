@@ -24,7 +24,6 @@ from pydantic import TypeAdapter, ValidationError
 from litellm._logging import verbose_proxy_logger
 from litellm._uuid import uuid
 from litellm.constants import MODEL_BATCH_ENQUEUED_TOKEN_LIMIT_METADATA_KEY
-from litellm.litellm_core_utils.core_helpers import attribute_or_none
 from litellm.proxy._types import *
 from litellm.proxy.auth.auth_checks import delete_cached_project_object
 from litellm.proxy.auth.auth_utils import BatchLimitRequest, enforce_batch_limits_are_admin_only
@@ -600,7 +599,7 @@ async def new_project(
                 _set_object_metadata_field(
                     object_data=data,
                     field_name=field,
-                    value=attribute_or_none(data, field),
+                    value=getattr(data, field),
                 )
                 delattr(data, field)
 
@@ -704,7 +703,7 @@ async def new_project(
                 _set_object_metadata_field(
                     object_data=project_row,
                     field_name=field,
-                    value=attribute_or_none(data, field),
+                    value=getattr(data, field),
                 )
 
         new_project_row = _jsonified(prisma_client, project_row.model_dump(exclude_none=True))
@@ -811,7 +810,7 @@ async def update_project(
                 _set_object_metadata_field(
                     object_data=data,
                     field_name=field,
-                    value=attribute_or_none(data, field),
+                    value=getattr(data, field),
                 )
                 delattr(data, field)
 

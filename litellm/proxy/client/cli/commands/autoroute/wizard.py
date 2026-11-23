@@ -8,8 +8,6 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
-from litellm.litellm_core_utils.core_helpers import as_object_list
-
 from .... import Client
 from ..auth import cli_context_obj
 from .config import (
@@ -116,12 +114,11 @@ def run_configure_wizard(ctx: click.Context) -> Path:
     client: Final = Client(base_url=base_url, api_key=api_key)
 
     raw_models: Final = client.models.list()
-    model_listings: Final = as_object_list(raw_models)
-    if model_listings is None:
+    if not isinstance(raw_models, list):
         raise click.ClickException(
             f"Unexpected response from /v1/models: expected a list, got {type(raw_models).__name__}"
         )
-    discovered: Final = parse_discovered_models(model_listings)
+    discovered: Final = parse_discovered_models(raw_models)
     chat_pool: Final = chat_models(discovered)
     embedding_pool: Final = embedding_models(discovered)
 

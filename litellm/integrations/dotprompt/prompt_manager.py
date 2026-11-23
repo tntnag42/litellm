@@ -3,7 +3,7 @@ Based on Google's GenAI Kit dotprompt implementation: https://google.github.io/d
 """
 
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Final, Protocol
 
@@ -29,14 +29,6 @@ class PromptJsonEntry(TypedDict):
 
 class _SupportsGet(Protocol):
     def get(self, key: str, default: object = None, /) -> object: ...
-
-
-class _SchemaFields(Protocol):
-    def items(self) -> Iterable[tuple[str, object]]: ...
-
-
-class _SupportsLower(Protocol):
-    def lower(self) -> object: ...
 
 
 def _metadata_section(metadata: Mapping[str, object], name: str) -> _SupportsGet:
@@ -66,7 +58,7 @@ class PromptTemplate:
         # Extract common metadata fields
         restricted_keys: Final = ["model", "input", "output"]
         self.model = self.metadata.get("model")
-        self.input_schema = _metadata_section(self.metadata, "input").get("schema", {})
+        self.input_schema = self.metadata.get("input", {}).get("schema", {})
         self.output_format = _metadata_section(self.metadata, "output").get("format")
         self.output_schema = _metadata_section(self.metadata, "output").get("schema", {})
         self.optional_params = {}
@@ -265,9 +257,9 @@ class PromptManager:
         except Exception as e:
             raise ValueError(f"Error rendering template '{prompt_id}': {e}")
 
-    def _validate_input(self, variables: Mapping[str, object], schema: object) -> None:
+    def _validate_input(self, variables: Mapping[str, object], schema: Mapping[str, str]) -> None:
         """Basic validation of input variables against schema."""
-        for field_name, field_type in require_attributes(schema, _SchemaFields, "items").items():
+        for field_name, field_type in schema.items():
             if field_name in variables:
                 value = variables[field_name]
                 expected_type = self._get_python_type(field_type)
@@ -278,9 +270,9 @@ class PromptManager:
                         f"expected {getattr(expected_type, '__name__', str(expected_type))}, got {type(value).__name__}"
                     )
 
-    def _get_python_type(self, schema_type: object) -> type | tuple[type, ...]:
+    def _get_python_type(self, schema_type: str) -> type | tuple:
         """Convert schema type string to Python type."""
-        type_mapping: Final[Mapping[object, type | tuple[type, ...]]] = {
+        type_mapping: Final[dict[str, type | tuple]] = {
             "string": str,
             "str": str,
             "number": (int, float),
@@ -295,7 +287,7 @@ class PromptManager:
             "dict": dict,
         }
 
-        return type_mapping.get(require_attributes(schema_type, _SupportsLower, "lower").lower(), str)
+        return type_mapping.get(schema_type.lower(), str)
 
     def get_prompt(self, prompt_id: str, version: int | None = None) -> PromptTemplate | None:
         """

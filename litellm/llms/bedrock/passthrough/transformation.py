@@ -682,10 +682,7 @@ class BedrockPassthroughConfig(BaseAWSLLM, BedrockModelInfo, BedrockEventStreamD
         logging_obj: Logging,
         endpoint: str,
     ) -> Optional["CostResponseTypes"]:
-        if TYPE_CHECKING:
-            from litellm.main import encoding
-        else:
-            from litellm import encoding
+        from litellm import encoding
         from litellm.types.utils import LlmProviders, ModelResponse
         from litellm.utils import ProviderConfigManager
 

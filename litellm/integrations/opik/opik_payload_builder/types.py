@@ -1,6 +1,6 @@
 """Type definitions for Opik payload building."""
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Final, Literal
 
@@ -9,16 +9,16 @@ from typing import Final, Literal
 class TracePayload:
     """Opik trace payload structure"""
 
-    project_name: object
+    project_name: str
     id: str
-    name: object
+    name: str
     start_time: str
     end_time: str
     input: object
     output: object
     metadata: Mapping[str, object]
-    tags: Sequence[object]
-    thread_id: object = None
+    tags: list[str]
+    thread_id: str | None = None
 
 
 @dataclass
@@ -26,17 +26,17 @@ class SpanPayload:
     """Opik span payload structure"""
 
     id: str
-    project_name: object
+    project_name: str
     trace_id: str
     name: str
     type: Literal["llm"]
-    model: object
+    model: str
     start_time: str
     end_time: str
     input: object
     output: object
     metadata: Mapping[str, object]
-    tags: Sequence[object]
+    tags: list[str]
     usage: dict[str, int]
     parent_span_id: str | None = None
     provider: str | None = None

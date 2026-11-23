@@ -27,7 +27,6 @@ from typing import TYPE_CHECKING, Final, NamedTuple
 
 from litellm._logging import verbose_proxy_logger
 from litellm.constants import INTERNAL_CALL_ORIGIN_METADATA_KEY
-from litellm.litellm_core_utils.core_helpers import attribute_or_none
 from litellm.proxy._types import DB_RETRY_SAFE_ERROR_TYPES
 from litellm.proxy.db.create_views import SupportsExecuteRaw
 from litellm.proxy.db.db_span import db_span
@@ -495,7 +494,7 @@ _SESSION_TABLE_BY_STATEMENT: Final[Mapping[str, str]] = MappingProxyType(
 )
 
 
-def _as_sql_param(value: object) -> object:
+def _as_sql_param(value: str | float | bool | datetime | None) -> str | float | None:
     if isinstance(value, bool):
         return int(value)
     if isinstance(value, datetime):
@@ -503,8 +502,8 @@ def _as_sql_param(value: object) -> object:
     return value
 
 
-def _upsert_params(transaction: AutoRouterTurnTransaction) -> tuple[object, ...]:
-    return tuple(_as_sql_param(attribute_or_none(transaction, name)) for name in _UPSERT_PARAM_FIELDS)
+def _upsert_params(transaction: AutoRouterTurnTransaction) -> tuple[str | float | None, ...]:
+    return tuple(_as_sql_param(getattr(transaction, name)) for name in _UPSERT_PARAM_FIELDS)
 
 
 async def write_autorouter_turn(

@@ -5,6 +5,7 @@ import uuid
 from collections.abc import AsyncGenerator, AsyncIterable, Iterator, Mapping, Sequence
 from typing import (
     TYPE_CHECKING,
+    Any,  # noqa: TID251  # the streaming hook passes provider chunks through untyped
     ClassVar,
     Final,
     Literal,
@@ -205,7 +206,7 @@ class LLMShieldProxyGuardrail(CustomGuardrail):
         request_data: MutableRequest,
         response: "LLMResponseTypes",
         call_type: "CallTypes | None",
-    ) -> object:
+    ) -> "LLMResponseTypes | None":
         """Restores the reply here only when the deployment pre-call hook redacted it.
 
         LiteLLM caches what this hook returns. Inside the proxy the request was redacted by
@@ -482,7 +483,7 @@ class LLMShieldProxyGuardrail(CustomGuardrail):
         user_api_key_dict: UserAPIKeyAuth,
         response: AsyncIterable[object],
         request_data: MutableRequest,
-    ) -> AsyncGenerator[object, None]:
+    ) -> AsyncGenerator[Any, None]:
         """Restores original values incrementally, without buffering the stream.
 
         Each choice -- and each tool call within a choice -- is its own token stream, so

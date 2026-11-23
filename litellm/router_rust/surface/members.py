@@ -11,8 +11,6 @@ import copy
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Final
 
-from pydantic import TypeAdapter
-
 from litellm._logging import verbose_router_logger
 from litellm.litellm_core_utils.sensitive_data_masker import SensitiveDataMasker
 from litellm.router_api import deployment_id
@@ -23,8 +21,6 @@ from litellm.types.router import Deployment
 if TYPE_CHECKING:
     from litellm.router_python_host import PythonHost
     from litellm.router_rust.core import RustCore
-
-_COUNTER_VALUE: Final = TypeAdapter(object)
 
 
 class _CallCounter:
@@ -38,7 +34,7 @@ class _CallCounter:
         if core is None:
             return self
         try:
-            return _COUNTER_VALUE.validate_python(getattr(core._endpoints.counters, self._name))  # pyright: ignore[reportPrivateUsage]  # the core's own counters
+            return getattr(core._endpoints.counters, self._name)  # pyright: ignore[reportPrivateUsage]  # the core's own counters
         except AttributeError:
             raise core._no_attribute(self._name) from None  # pyright: ignore[reportPrivateUsage]  # see above
 

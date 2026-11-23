@@ -120,7 +120,6 @@ from pydantic import JsonValue, TypeAdapter
 from starlette.requests import HTTPConnection
 from starlette.types import Message, Send
 
-from litellm.litellm_core_utils.core_helpers import iter_items
 from litellm.litellm_core_utils.secret_redaction import REDACTED, redact_string
 from litellm.litellm_core_utils.sensitive_data_masker import SensitiveDataMasker
 
@@ -132,7 +131,6 @@ MCP_DEBUG_REQUEST_HEADER: Final = "x-litellm-mcp-debug"
 
 # Prefix for all debug response headers
 _RESPONSE_HEADER_PREFIX: Final = "x-mcp-debug"
-_ASGI_MESSAGE_FIELD: Final = TypeAdapter(object)
 
 
 MCP_AUTH_DIAGNOSTICS_SCOPE_KEY: Final = "litellm.mcp.auth_diagnostics"
@@ -347,7 +345,7 @@ class MCPDebug:
 
         async def _send_with_debug(message: Message) -> None:
             if message["type"] == "http.response.start":
-                headers: Final = list(iter_items(_ASGI_MESSAGE_FIELD.validate_python(message.get("headers", []))))
+                headers: Final = list(message.get("headers", []))
                 for k, v in debug_headers.items():
                     headers.append((k.encode(), v.encode()))
                 message = {**message, "headers": headers}

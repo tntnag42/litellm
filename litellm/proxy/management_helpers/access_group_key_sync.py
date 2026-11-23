@@ -26,9 +26,8 @@ schema.
 """
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Final, Protocol
+from typing import Final, Protocol
 
-from litellm.litellm_core_utils.core_helpers import require_attributes
 from litellm.proxy._types import (
     LiteLLM_VerificationToken,
     RegenerateKeyRequest,
@@ -42,10 +41,6 @@ from litellm.proxy.db.routing_prisma_wrapper import writer_wrapper
 from litellm.repositories.access_group_repository import AccessGroupRepository
 from litellm.types.llms.base import LiteLLMBaseModel
 
-if TYPE_CHECKING:
-    from litellm.proxy.db.prisma_client import PrismaWrapper
-    from litellm.proxy.db.routing_prisma_wrapper import RoutingPrismaWrapper
-
 
 class _MovedGroupRow(LiteLLMBaseModel):
     access_group_id: str
@@ -53,11 +48,6 @@ class _MovedGroupRow(LiteLLMBaseModel):
 
 class _RawExecutor(Protocol):
     async def query_raw(self, query: str, *args: str | Sequence[str]) -> Sequence[object]: ...
-
-
-class _PrismaClientView(Protocol):
-    @property
-    def db(self) -> "PrismaWrapper | RoutingPrismaWrapper": ...
 
 
 _ATTACH_KEY_SQL: Final = (
@@ -84,8 +74,8 @@ _REPOINT_KEY_SQL: Final = (
 
 def _raw_executor(prisma_client: object) -> _RawExecutor:
     """Narrow the untyped Prisma client down to the raw-query call this module makes, pinned to the writer."""
-    db: Final = require_attributes(AccessGroupRepository(prisma_client).prisma_client, _PrismaClientView, "db").db
-    return writer_wrapper(db)  # pyright: ignore[reportReturnType]  # untyped Prisma client behind the pin
+    db: Final = AccessGroupRepository(prisma_client).prisma_client.db  # pyright: ignore[reportAny]  # untyped Prisma client
+    return writer_wrapper(db)  # pyright: ignore[reportAny, reportReturnType]  # untyped Prisma client behind the pin
 
 
 async def _invalidate_access_group_cache(access_group_id: str) -> None:

@@ -13,8 +13,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Final, Literal, Protocol, TypeAlias, TypedDict, runtime_checkable
 
-from pydantic import TypeAdapter, ValidationError
-from typing_extensions import ReadOnly
+from pydantic import ValidationError
 
 import litellm
 from litellm._logging import verbose_logger
@@ -23,7 +22,6 @@ from litellm.litellm_core_utils.allowed_tools_tool_choice import (
     allowed_tools_tool_choice_in_auto_mode,
     allowed_tools_tool_choice_with_builtin_as_function,
 )
-from litellm.litellm_core_utils.core_helpers import require_get
 from litellm.llms.base_llm.sandbox.transformation import (
     CodeExecutionResult,
     ContainerHandle,
@@ -62,7 +60,6 @@ _CONVERTED_STREAM_KEY: Final = "_code_interpreter_interception_converted_stream"
 _LITELLM_METADATA_KEY: Final = "litellm_metadata"
 _CACHE_TTL_SECONDS: Final = 15 * 60
 _SESSION_SCOPED_PER_IDENTITY_CAP: Final = 10
-_DECODED_JSON: Final = TypeAdapter(object)
 
 
 class CodeExecutionToolCall(TypedDict, total=False):
@@ -82,7 +79,7 @@ class CodeInterpreterCall(TypedDict):
     id: str
     type: Literal["code_interpreter_call"]
     status: Literal["completed", "failed"]
-    code: ReadOnly[object]
+    code: str
     container_id: str | None
     outputs: list[CodeInterpreterLogOutput]
 
@@ -755,11 +752,9 @@ class CodeInterpreterInterceptionLogger(CustomLogger):
         return items[:insert_at] + list(calls) + items[insert_at:]
 
     @staticmethod
-    def _parse_code(arguments: str) -> object:
+    def _parse_code(arguments: str) -> str:
         try:
-            return (
-                require_get(_DECODED_JSON.validate_python(json.loads(arguments))).get("code", "") if arguments else ""
-            )
+            return json.loads(arguments).get("code", "") if arguments else ""
         except (json.JSONDecodeError, TypeError, AttributeError):
             return ""
 

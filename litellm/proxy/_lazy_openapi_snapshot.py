@@ -19,7 +19,6 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
-from pydantic import TypeAdapter
 from typing_extensions import ReadOnly, TypedDict
 
 if TYPE_CHECKING:
@@ -38,7 +37,6 @@ HTTP_METHOD_SUFFIXES: Final = {
     "put",
     "trace",
 }
-_SNAPSHOT_DOCUMENT: Final = TypeAdapter(object)
 
 
 def _stabilize_multi_method_route_ids(routes) -> None:
@@ -54,12 +52,12 @@ def _stabilize_multi_method_route_ids(routes) -> None:
         route.unique_id = f"{operation_id}_{methods[0].lower()}"
 
 
-def load_snapshot() -> object:
+def load_snapshot() -> dict[str, dict] | None:
     if not SNAPSHOT_FILE.exists():
         return None
     try:
         with SNAPSHOT_FILE.open() as f:
-            return _SNAPSHOT_DOCUMENT.validate_python(json.load(f))
+            return json.load(f)
     except (json.JSONDecodeError, OSError):
         return None
 

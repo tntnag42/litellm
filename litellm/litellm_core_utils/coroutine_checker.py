@@ -24,17 +24,16 @@ class CoroutineChecker:
         Falls back gracefully if the object cannot be weak-referenced or cached.
         2.59x speedup.
         """
-        candidate: Final[object] = callback
         # Fast path: check cache first (most common case)
         try:
-            cached: Final = self._cache.get(candidate)
+            cached: Final = self._cache.get(callback)
             if cached is not None:
                 return cached
         except Exception:
             pass
 
         # Determine target - optimized path for common cases
-        target: object = candidate
+        target: object = callback
         if not inspect.isfunction(target) and not inspect.ismethod(target):
             try:
                 call_attr: Final[object] = getattr(target, "__call__", None)  # noqa: B004  # value unwrap so iscoroutinefunction sees through functors
@@ -55,7 +54,7 @@ class CoroutineChecker:
             if len(self._cache) >= self._max_size:
                 self._cache.clear()
 
-            self._cache[candidate] = result
+            self._cache[callback] = result
         except Exception:
             pass
 

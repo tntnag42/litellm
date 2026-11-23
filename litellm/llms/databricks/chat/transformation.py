@@ -964,8 +964,7 @@ class DatabricksConfig(DatabricksBase, OpenAILikeChatConfig, AnthropicConfig):
 
         ## RESPONSE OBJECT
         try:
-            decoded_response: Final[DatabricksResponse] = raw_response.json()
-            completion_response: Final = DatabricksResponse(**decoded_response)
+            completion_response: Final = DatabricksResponse(**raw_response.json())
         except Exception as e:
             response_headers: Final = getattr(raw_response, "headers", None)
             raise DatabricksException(

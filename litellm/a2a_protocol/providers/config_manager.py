@@ -5,7 +5,6 @@ Manages provider-specific configurations for A2A protocol.
 """
 
 from litellm.a2a_protocol.providers.base import BaseA2AProviderConfig
-from litellm.litellm_core_utils.core_helpers import json_contains
 
 
 class A2AProviderConfigManager:
@@ -17,8 +16,8 @@ class A2AProviderConfigManager:
 
     @staticmethod
     def get_provider_config(
-        custom_llm_provider: object,
-        model: object = None,
+        custom_llm_provider: str | None,
+        model: str | None = None,
     ) -> BaseA2AProviderConfig | None:
         """
         Get the provider configuration for a given custom_llm_provider.
@@ -40,7 +39,7 @@ class A2AProviderConfigManager:
 
             return PydanticAIProviderConfig()
 
-        if custom_llm_provider == "bedrock" and model and json_contains(model, "agentcore"):
+        if custom_llm_provider == "bedrock" and model and "agentcore" in model:
             from litellm.a2a_protocol.providers.bedrock_agentcore.config import (
                 BedrockAgentCoreA2AConfig,
             )

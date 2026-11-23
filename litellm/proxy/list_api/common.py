@@ -1,16 +1,14 @@
 """Contract machinery shared by every LiteLLM-defined list route, on any surface."""
 
 from collections.abc import Sequence
-from typing import Final, Protocol
+from typing import Final
 from urllib.parse import urlencode
 
 from fastapi import Request
-from fastapi.dependencies.models import Dependant
 from fastapi.dependencies.utils import get_flat_params
 from fastapi.params import ParamTypes
 from fastapi.responses import JSONResponse
 
-from litellm.litellm_core_utils.core_helpers import has_attributes
 from litellm.proxy.common_utils.validation_error_body import ValidationErrorDetail
 from litellm.types.proxy.management_endpoints.management_v1 import (
     ListLinks,
@@ -41,14 +39,9 @@ def problem_response(problem: ProblemDetail) -> JSONResponse:
     )
 
 
-class _DependantRoute(Protocol):
-    @property
-    def dependant(self) -> Dependant: ...
-
-
 def _declared_query_params(request: Request) -> frozenset[str]:
     route: Final = request.scope.get("route")
-    dependant: Final = route.dependant if has_attributes(route, _DependantRoute, "dependant") else None
+    dependant: Final = getattr(route, "dependant", None)
     if dependant is None:
         return frozenset()
     # fastapi>=0.140.7 removed get_flat_dependant(); get_flat_params() returns the

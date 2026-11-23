@@ -6,8 +6,6 @@ from dataclasses import dataclass
 from threading import RLock
 from typing import Final, Protocol
 
-from litellm.litellm_core_utils.core_helpers import has_attributes
-
 
 class _RemovableMetric(Protocol):
     """The one prometheus-client metric method this tracker calls."""
@@ -41,7 +39,7 @@ class BoundedPrometheusSeriesTracker:
 
     def track_series(
         self,
-        metric: object,
+        metric: _RemovableMetric,
         metric_name: str,
         label_values: tuple[str | None, ...],
         max_series: int | None,
@@ -124,7 +122,7 @@ class BoundedPrometheusSeriesTracker:
 
     def _remove_expired_series(
         self,
-        metric: object,
+        metric: _RemovableMetric,
         series: OrderedDict[tuple[str | None, ...], float],
         now: float,
         ttl_seconds: float,
@@ -137,7 +135,7 @@ class BoundedPrometheusSeriesTracker:
 
     def _remove_metric_series(
         self,
-        metric: object,
+        metric: _RemovableMetric,
         series: OrderedDict[tuple[str | None, ...], float],
         label_values: tuple[str | None, ...],
     ) -> None:
@@ -145,7 +143,7 @@ class BoundedPrometheusSeriesTracker:
             series.pop(label_values, None)
 
     @staticmethod
-    def _remove_metric_child(metric: object, label_values: tuple[str | None, ...]) -> bool:
+    def _remove_metric_child(metric: _RemovableMetric, label_values: tuple[str | None, ...]) -> bool:
         """
         Remove the Prometheus child for ``label_values`` and report whether the
         tracker should commit the matching state change.
@@ -156,8 +154,6 @@ class BoundedPrometheusSeriesTracker:
         still exists.
         """
         try:
-            if not has_attributes(metric, _RemovableMetric, "remove"):
-                return False
             metric.remove(*label_values)
             return True
         except KeyError:

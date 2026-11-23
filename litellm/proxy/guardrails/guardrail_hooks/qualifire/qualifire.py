@@ -8,7 +8,7 @@
 import json
 import os
 from collections.abc import Mapping
-from typing import Final, Literal
+from typing import Any, Final, Literal
 
 from fastapi import HTTPException
 from pydantic import TypeAdapter
@@ -271,7 +271,7 @@ class QualifireGuardrail(CustomGuardrail):
         self,
         api_messages: list[dict[str, object]],
         output: str | None,
-        assertions: object,
+        assertions: list[str] | None,
         available_tools: list[dict[str, object]] | None,
     ) -> dict[str, object]:
         """Build payload dictionary for the /api/evaluation/evaluate endpoint."""
@@ -309,7 +309,7 @@ class QualifireGuardrail(CustomGuardrail):
         self,
         messages: list[AllMessageValues],
         output: str | None,
-        dynamic_params: Mapping[str, object],
+        dynamic_params: dict[str, Any],
         available_tools: list[object] | None = None,
     ) -> None:
         """

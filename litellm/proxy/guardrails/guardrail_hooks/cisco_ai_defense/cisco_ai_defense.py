@@ -23,11 +23,10 @@ from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
 from itertools import chain
-from typing import TYPE_CHECKING, Final, Literal
+from typing import TYPE_CHECKING, Any, Final, Literal
 
 import httpx
 from fastapi import HTTPException
-from pydantic import TypeAdapter
 from typing_extensions import TypedDict, Unpack
 
 from litellm import DualCache
@@ -38,7 +37,6 @@ from litellm.integrations.custom_guardrail import (
     log_guardrail_information,
 )
 from litellm.litellm_core_utils.core_helpers import iter_items
-from litellm.litellm_core_utils.llm_cost_calc.guardrail_cost import is_str_keyed_dict
 from litellm.litellm_core_utils.prompt_templates.mid_conversation_system import message_field, parts_of
 from litellm.llms.anthropic.common_utils import (
     anthropic_server_tool_call_params,
@@ -81,7 +79,6 @@ if TYPE_CHECKING:
 
 
 CISCO_DEFAULT_API_BASE: Final = "https://us.api.inspect.aidefense.security.cisco.com"
-_DECODED_JSON: Final = TypeAdapter(object)
 CISCO_CHAT_INSPECT_PATH: Final = "/api/v1/inspect/chat"
 CISCO_MCP_INSPECT_PATH: Final = "/api/v1/inspect/mcp"
 CISCO_API_KEY_HEADER: Final = "X-Cisco-AI-Defense-API-Key"
@@ -113,12 +110,12 @@ class _ScanContext:
 class _CiscoVerdict:
     """Parsed Cisco AI Defense decision plus any sanitized rewrites it carries."""
 
-    is_safe: object
-    classifications: object
-    severity: object
-    rules: object
-    explanation: object
-    event_id: object
+    is_safe: bool | None
+    classifications: list[str]
+    severity: str | None
+    rules: list[dict[str, object]]
+    explanation: str | None
+    event_id: str | None
     action: str | None = None
     sanitized_text: str | None = None
     sanitized_messages: list[dict[str, object]] | None = None
@@ -578,9 +575,9 @@ class CiscoAIDefenseGuardrail(CiscoAIDefenseMcpMixin, CustomGuardrail):
             "surface": context.surface,
             "direction": context.direction,
             "action": "block",
-            "classifications": list(iter_items(verdict.classifications)),
+            "classifications": list(verdict.classifications),
             "severity": verdict.severity,
-            "rules": [r.get("rule_name") for r in iter_items(verdict.rules) if is_str_keyed_dict(r)],
+            "rules": [r.get("rule_name") for r in verdict.rules if isinstance(r, dict)],
             "explanation": verdict.explanation,
             "event_id": verdict.event_id,
         }
@@ -725,12 +722,12 @@ class CiscoAIDefenseGuardrail(CiscoAIDefenseMcpMixin, CustomGuardrail):
             "action": verdict.action,
             "is_safe": verdict.is_safe,
             "severity": verdict.severity,
-            "classifications": (list(iter_items(verdict.classifications)) if verdict.classifications else []),
+            "classifications": (list(verdict.classifications) if verdict.classifications else []),
             "rule_violations": sorted(
                 {
                     rule.get("rule_name")
-                    for rule in iter_items(verdict.rules)
-                    if is_str_keyed_dict(rule)
+                    for rule in verdict.rules
+                    if isinstance(rule, dict)
                     and rule.get("rule_name")
                     and rule.get("classification") not in (None, "NONE_VIOLATION")
                 }
@@ -797,7 +794,7 @@ class CiscoAIDefenseGuardrail(CiscoAIDefenseMcpMixin, CustomGuardrail):
         user_api_key_dict: UserAPIKeyAuth,
         direction: str = "input",
         response_obj: object = None,
-    ) -> object:
+    ) -> dict[str, object]:
         url: Final = f"{self.api_base}{self.inspect_path}"
         payload: Final = self._build_chat_payload(messages, request_data, user_api_key_dict)
         start_time: Final = datetime.now()
@@ -845,7 +842,7 @@ class CiscoAIDefenseGuardrail(CiscoAIDefenseMcpMixin, CustomGuardrail):
         url: str,
         payload: dict[str, object],
         surface: str,
-    ) -> object:
+    ) -> dict[str, object]:
         headers: Final = self._build_headers()
         verbose_proxy_logger.debug(
             "Cisco AI Defense guardrail: posting %s inspection to %s",
@@ -883,7 +880,7 @@ class CiscoAIDefenseGuardrail(CiscoAIDefenseMcpMixin, CustomGuardrail):
             raise CiscoAIDefenseGuardrailAPIError(f"Cisco AI Defense {surface} API request failed: {exc}") from exc
 
         try:
-            return _DECODED_JSON.validate_python(response.json())
+            return response.json()
         except ValueError as exc:
             raise CiscoAIDefenseGuardrailAPIError(
                 f"Cisco AI Defense {surface} API returned a non-JSON response"
@@ -990,12 +987,12 @@ class CiscoAIDefenseGuardrail(CiscoAIDefenseMcpMixin, CustomGuardrail):
 
     def _finalize_inspection(
         self,
-        inspect_response: object,
+        inspect_response: dict[str, object],
         request_data: dict[str, object],
         context: _ScanContext,
         start_time: datetime,
         response_obj: object = None,
-    ) -> object:
+    ) -> dict[str, object]:
         """Parse, log, and (optionally) raise/redact on the Cisco verdict.
 
         ``context.direction`` is ``"input"`` for request scans and ``"output"``
@@ -1141,12 +1138,12 @@ class CiscoAIDefenseGuardrail(CiscoAIDefenseMcpMixin, CustomGuardrail):
         if verdict.action:
             metadata_store[f"{prefix}_action"] = verdict.action
         if verdict.classifications:
-            metadata_store[f"{prefix}_classifications"] = list(iter_items(verdict.classifications))
+            metadata_store[f"{prefix}_classifications"] = list(verdict.classifications)
         if verdict.severity:
             metadata_store[f"{prefix}_severity"] = verdict.severity
         if verdict.rules:
             metadata_store[f"{prefix}_rules"] = [
-                rule.get("rule_name") for rule in iter_items(verdict.rules) if is_str_keyed_dict(rule)
+                rule.get("rule_name") for rule in verdict.rules if isinstance(rule, dict)
             ]
         if verdict.event_id:
             metadata_store[f"{prefix}_event_id"] = verdict.event_id
@@ -1164,7 +1161,7 @@ class CiscoAIDefenseGuardrail(CiscoAIDefenseMcpMixin, CustomGuardrail):
     @classmethod
     def _sanitize_response_for_logging(
         cls,
-        inspect_response: object,
+        inspect_response: Mapping[str, object],
         surface: str,
         action: str | None = None,
     ) -> dict[str, object]:
@@ -1174,7 +1171,7 @@ class CiscoAIDefenseGuardrail(CiscoAIDefenseMcpMixin, CustomGuardrail):
         top-level-only strip would leave ``result.raw_request`` or
         ``result.sanitized_payload`` in the logging metadata.
         """
-        if not is_str_keyed_dict(inspect_response):
+        if not isinstance(inspect_response, dict):
             return {"surface": surface, **({"action": action} if action else {})}
         sanitized: Final = cls._strip_sensitive_keys(inspect_response)
         sanitized["surface"] = surface
@@ -1230,7 +1227,7 @@ class CiscoAIDefenseGuardrail(CiscoAIDefenseMcpMixin, CustomGuardrail):
         return any(key in payload for key in cls._DECISION_FIELDS)
 
     @classmethod
-    def _unwrap_verdict_envelope(cls, inspect_response: object) -> dict[str, object]:
+    def _unwrap_verdict_envelope(cls, inspect_response: dict[str, object]) -> dict[str, Any]:
         """Return the dict that actually holds is_safe / action / rules.
 
         Cisco AI Defense returns the verdict at different nesting depths
@@ -1245,7 +1242,7 @@ class CiscoAIDefenseGuardrail(CiscoAIDefenseMcpMixin, CustomGuardrail):
         handler tolerates every shape Cisco's own tested integration
         already supports.
         """
-        if not is_str_keyed_dict(inspect_response):
+        if not isinstance(inspect_response, dict):
             return {}
 
         if cls._has_decision_fields(inspect_response):
@@ -1253,21 +1250,21 @@ class CiscoAIDefenseGuardrail(CiscoAIDefenseMcpMixin, CustomGuardrail):
 
         for key in ("result", "data", "inspection", "ai_defense", "aiDefense"):
             value = inspect_response.get(key)
-            if is_str_keyed_dict(value) and cls._has_decision_fields(value):
+            if cls._has_decision_fields(value):
                 return value
 
         result: Final = inspect_response.get("result")
-        if is_str_keyed_dict(result):
+        if isinstance(result, dict):
             for key in ("data", "inspection", "ai_defense", "aiDefense"):
                 value = result.get(key)
-                if is_str_keyed_dict(value) and cls._has_decision_fields(value):
+                if cls._has_decision_fields(value):
                     return value
 
         return inspect_response
 
     @staticmethod
     def _extract_jsonrpc_error(
-        inspect_response: object,
+        inspect_response: Mapping[str, object],
     ) -> dict[str, object] | None:
         """Detect a JSON-RPC error envelope inside an HTTP 200 response.
 
@@ -1276,7 +1273,7 @@ class CiscoAIDefenseGuardrail(CiscoAIDefenseMcpMixin, CustomGuardrail):
         transport error so the configured ``fallback_on_error`` policy
         applies.
         """
-        if not is_str_keyed_dict(inspect_response):
+        if not isinstance(inspect_response, dict):
             return None
         error: Final = inspect_response.get("error")
         if isinstance(error, dict):
@@ -1815,14 +1812,14 @@ class CiscoAIDefenseGuardrail(CiscoAIDefenseMcpMixin, CustomGuardrail):
 
     @staticmethod
     def _extract_masked_entity_count(
-        rules: object,
+        rules: Sequence[Mapping[str, object]],
     ) -> dict[str, int] | None:
         """Count entity-type detections per Cisco rule for the logging payload."""
         if not rules:
             return None
         counts: Final[dict[str, int]] = {}
-        for rule in iter_items(rules):
-            if not is_str_keyed_dict(rule):
+        for rule in rules:
+            if not isinstance(rule, dict):
                 continue
             for entity_type in iter_items(rule.get("entity_types") or ()):
                 if not isinstance(entity_type, str):

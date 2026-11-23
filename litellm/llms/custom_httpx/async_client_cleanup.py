@@ -3,17 +3,7 @@ Utility functions for cleaning up async HTTP clients to prevent resource leaks.
 """
 
 import asyncio
-from collections.abc import Iterable
-from typing import Final, Protocol
-
-
-class _CachedClients(Protocol):
-    def values(self) -> Iterable[object]: ...
-
-
-class _ReportsClosed(Protocol):
-    @property
-    def is_closed(self) -> object: ...
+from typing import Final
 
 
 async def close_litellm_async_clients():
@@ -26,13 +16,11 @@ async def close_litellm_async_clients():
     """
     # Import here to avoid circular import
     import litellm
-    from litellm.litellm_core_utils.core_helpers import attribute_or_none, has_attributes, require_attributes
     from litellm.llms.custom_httpx.aiohttp_handler import BaseLLMAIOHTTPHandler
-    from litellm.llms.custom_httpx.stream_close import SupportsAclose
 
-    cache_dict: Final[object] = getattr(litellm.in_memory_llm_clients_cache, "cache_dict", {})
+    cache_dict: Final = getattr(litellm.in_memory_llm_clients_cache, "cache_dict", {})
 
-    for handler in require_attributes(cache_dict, _CachedClients, "values").values():
+    for handler in cache_dict.values():
         # Handle BaseLLMAIOHTTPHandler instances (aiohttp_openai provider)
         if isinstance(handler, BaseLLMAIOHTTPHandler) and hasattr(handler, "close"):
             try:
@@ -43,24 +31,16 @@ async def close_litellm_async_clients():
 
         # Handle AsyncHTTPHandler instances (used by Gemini and other providers)
         elif hasattr(handler, "_client") or hasattr(handler, "client"):
-            client = (
-                attribute_or_none(handler, "_client")
-                if hasattr(handler, "_client")
-                else attribute_or_none(handler, "client")
-            )
-            transport = attribute_or_none(client, "_transport")
+            client = handler._client if hasattr(handler, "_client") else handler.client
             # Check if the httpx client has an aiohttp transport
-            if has_attributes(transport, SupportsAclose, "aclose"):
+            if hasattr(client, "_transport") and hasattr(client._transport, "aclose"):
                 try:
-                    await transport.aclose()
+                    await client._transport.aclose()
                 except Exception:
                     # Silently ignore errors during cleanup
                     pass
             # Also close the httpx client itself
-            if (
-                has_attributes(client, SupportsAclose, "aclose")
-                and not require_attributes(client, _ReportsClosed, "is_closed").is_closed
-            ):
+            if hasattr(client, "aclose") and not client.is_closed:
                 try:
                     await client.aclose()
                 except Exception:
@@ -68,7 +48,7 @@ async def close_litellm_async_clients():
                     pass
 
         # Handle any other objects with aclose method
-        elif has_attributes(handler, SupportsAclose, "aclose"):
+        elif hasattr(handler, "aclose"):
             try:
                 await handler.aclose()
             except Exception:

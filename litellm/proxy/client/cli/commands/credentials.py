@@ -1,6 +1,6 @@
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Final, Literal
@@ -9,9 +9,8 @@ import click
 import requests
 import rich
 from rich.table import Table
-from typing_extensions import ReadOnly, TypedDict
+from typing_extensions import NotRequired, ReadOnly, TypedDict
 
-from litellm.litellm_core_utils.core_helpers import as_str_mapping, iter_items, require_get
 from litellm.models.credentials import UserConnectionPollResponse, UserConnectionPollStatus
 
 from ...credentials import CredentialsManagementClient
@@ -35,6 +34,21 @@ class PollClock:
 
 
 SYSTEM_CLOCK: Final = PollClock(now=time.monotonic, sleep=time.sleep)
+
+
+class _CredentialInfo(TypedDict):
+    custom_llm_provider: ReadOnly[NotRequired[str]]
+
+
+class _CredentialItem(TypedDict):
+    credential_name: ReadOnly[NotRequired[str]]
+    display_name: ReadOnly[NotRequired[str | None]]
+    source: ReadOnly[NotRequired[str]]
+    credential_info: ReadOnly[NotRequired[_CredentialInfo]]
+
+
+class _CredentialsListView(TypedDict):
+    credentials: ReadOnly[Sequence[_CredentialItem]]
 
 
 class _JsonObjectView(TypedDict):
@@ -67,7 +81,7 @@ def list(ctx: click.Context, output_format: Literal["table", "json"]):
     """List all credentials"""
     context: Final = cli_context_values(ctx)
     client: Final = CredentialsManagementClient(context["base_url"], context["api_key"])
-    response: Final = as_str_mapping(client.list())
+    response: Final = client.list()
     assert isinstance(response, dict)
 
     if output_format == "json":
@@ -82,14 +96,14 @@ def list(ctx: click.Context, output_format: Literal["table", "json"]):
         table.add_column("Custom LLM Provider", style="green")
 
         # Add rows
-        for cred in iter_items(response.get("credentials", [])):
-            entry = require_get(cred)
-            info = entry.get("credential_info", {})
+        listed: Final[_CredentialsListView] = {"credentials": response.get("credentials", [])}
+        for cred in listed["credentials"]:
+            info = cred.get("credential_info", {})
             table.add_row(
-                str(entry.get("credential_name", "")),
-                entry.get("display_name") or "",
-                str(entry.get("source", "")),
-                str(require_get(info).get("custom_llm_provider", "")),
+                str(cred.get("credential_name", "")),
+                cred.get("display_name") or "",
+                str(cred.get("source", "")),
+                str(info.get("custom_llm_provider", "")),
             )
 
         rich.print(table)

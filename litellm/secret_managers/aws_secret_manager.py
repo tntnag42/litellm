@@ -12,8 +12,7 @@ import ast
 import base64
 import os
 import re
-from collections.abc import Mapping
-from typing import Final
+from typing import Any, Final
 
 from pydantic import TypeAdapter
 
@@ -128,7 +127,7 @@ class AWSKeyManagementService_V2:
 """
 
 
-def decrypt_env_var() -> Mapping[str, str | bool]:
+def decrypt_env_var() -> dict[str, Any]:
     # setup client class
     aws_kms: Final = AWSKeyManagementService_V2()
     # iterate through env - for `aws_kms/`
